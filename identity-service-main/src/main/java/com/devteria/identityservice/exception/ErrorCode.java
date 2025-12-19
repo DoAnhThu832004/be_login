@@ -16,6 +16,10 @@ public enum ErrorCode {
     UNAUTHENTICATED(1006, "Unauthenticated", HttpStatus.UNAUTHORIZED),
     UNAUTHORIZED(1007, "You do not have permission", HttpStatus.FORBIDDEN),
     INVALID_DOB(1008, "Your age must be at least {min}", HttpStatus.BAD_REQUEST),
+    SONG_NOT_EXISTED(2005,"User not existed",HttpStatus.NOT_FOUND),
+    UPLOAD_FAILED(2007,"Failed to upload files to Cloudinary",HttpStatus.BAD_REQUEST),
+    GENRE_NOT_EXISTED(2006,"Genre not existed",HttpStatus.NOT_FOUND),
+    PLAYLIST_NOT_EXISTED(2000,"Playlist not existed", HttpStatus.NOT_FOUND),
     ;
 
     ErrorCode(int code, String message, HttpStatusCode statusCode) {
