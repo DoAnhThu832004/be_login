@@ -1,24 +1,15 @@
-package com.devteria.identityservice.entity;
+package com.devteria.identityservice.dto.response;
 
-import jakarta.persistence.*;
-
-import java.util.AbstractList;
-import java.util.Set;
-
-@Entity
-public class Artist {
-    @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
+public class ArtistResponse {
     private String id;
     private String name;
     private String description;
     private String imageUrlAr;
-    @ManyToMany(mappedBy = "artist")
-    private Set<Album> albums;
-    public Artist() {
+
+    public ArtistResponse() {
     }
 
-    public Artist(String id, String name, String description, String imageUrlAr) {
+    public ArtistResponse(String id, String name, String description, String imageUrlAr) {
         this.id = id;
         this.name = name;
         this.description = description;
@@ -56,13 +47,4 @@ public class Artist {
     public void setImageUrlAr(String imageUrlAr) {
         this.imageUrlAr = imageUrlAr;
     }
-
-    public Set<Album> getAlbums() {
-        return albums;
-    }
-
-    public void setAlbums(Set<Album> albums) {
-        this.albums = albums;
-    }
-
 }

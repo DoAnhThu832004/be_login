@@ -52,10 +52,10 @@ public class PlaylistService {
     }
     private void mapRequestToPlaylist(Playlist playlist, PlaylistUpdateRequest request) {
         if(request == null) return;
-        if(request.getTitle() == null && !request.getTitle().isEmpty()) {
+        if(request.getTitle() != null && !request.getTitle().isEmpty()) {
             playlist.setTitle(request.getTitle());
         }
-        if(request.getDescription() == null && !request.getDescription().isEmpty()) {
+        if(request.getDescription() != null && !request.getDescription().isEmpty()) {
             playlist.setDescription(request.getDescription());
         }
     }

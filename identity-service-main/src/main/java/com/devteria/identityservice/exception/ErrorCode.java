@@ -20,6 +20,8 @@ public enum ErrorCode {
     UPLOAD_FAILED(2007,"Failed to upload files to Cloudinary",HttpStatus.BAD_REQUEST),
     GENRE_NOT_EXISTED(2006,"Genre not existed",HttpStatus.NOT_FOUND),
     PLAYLIST_NOT_EXISTED(2000,"Playlist not existed", HttpStatus.NOT_FOUND),
+    ALBUM_NOT_EXISTED(2000,"Album not existed", HttpStatus.NOT_FOUND),
+    ARTIST_NOT_EXISTED(2000,"Artist not existed", HttpStatus.NOT_FOUND)
     ;
 
     ErrorCode(int code, String message, HttpStatusCode statusCode) {

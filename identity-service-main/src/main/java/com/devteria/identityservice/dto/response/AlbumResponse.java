@@ -1,33 +1,20 @@
-package com.devteria.identityservice.entity;
+package com.devteria.identityservice.dto.response;
 
 import com.devteria.identityservice.enums.Status;
-import jakarta.persistence.*;
 
 import java.util.Set;
 
-@Entity
-public class Album {
-    @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
+public class AlbumResponse {
     private String id;
     private String name;
     private String description;
     private Status status;
     private String imageUrlA;
-    @OneToMany(mappedBy = "album")
-    private Set<Song> songs;
 
-    @ManyToMany
-    @JoinTable(
-            name = "artist_album",
-            joinColumns = @JoinColumn(name = "artist_id"),
-            inverseJoinColumns = @JoinColumn(name = "album_id")
-    )
-    private Set<Artist> artist;
-    public Album() {
+    public AlbumResponse() {
     }
 
-    public Album(String id, String name, String description, Status status, String imageUrlA) {
+    public AlbumResponse(String id, String name, String description, Status status, String imageUrlA) {
         this.id = id;
         this.name = name;
         this.description = description;
@@ -73,21 +60,5 @@ public class Album {
 
     public void setImageUrlA(String imageUrlA) {
         this.imageUrlA = imageUrlA;
-    }
-
-    public Set<Song> getSongs() {
-        return songs;
-    }
-
-    public void setSongs(Set<Song> songs) {
-        this.songs = songs;
-    }
-
-    public Set<Artist> getArtist() {
-        return artist;
-    }
-
-    public void setArtist(Set<Artist> artist) {
-        this.artist = artist;
     }
 }
