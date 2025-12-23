@@ -35,6 +35,8 @@ public class Song {
     @ManyToOne
     @JoinColumn(name = "album_id")
     private Album album;
+    @ManyToMany(mappedBy = "song")
+    private Set<Artist> artists;
     public Song() {
     }
 
@@ -152,5 +154,13 @@ public class Song {
 
     public void setAlbum(Album album) {
         this.album = album;
+    }
+
+    public Set<Artist> getArtists() {
+        return artists;
+    }
+
+    public void setArtists(Set<Artist> artists) {
+        this.artists = artists;
     }
 }

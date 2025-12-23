@@ -13,6 +13,8 @@ public class Genre {
     private String name;
     @OneToMany(mappedBy = "genre")
     private Set<Song> songs;
+    @ManyToMany(mappedBy = "artistGenre")
+    private Set<Artist> artists;
     public Genre() {
     }
 

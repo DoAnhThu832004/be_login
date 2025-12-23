@@ -15,6 +15,20 @@ public class Artist {
     private String imageUrlAr;
     @ManyToMany(mappedBy = "artist")
     private Set<Album> albums;
+    @ManyToMany
+    @JoinTable(
+            name = "artist_song",
+            joinColumns = @JoinColumn(name = "artist_id"),
+            inverseJoinColumns = @JoinColumn(name = "song_id")
+    )
+    private Set<Song> song;
+    @ManyToMany
+    @JoinTable(
+            name = "artist_genre",
+            joinColumns = @JoinColumn(name = "artist_id"),
+            inverseJoinColumns = @JoinColumn(name = "genre_id")
+    )
+    private Set<Genre> artistGenre;
     public Artist() {
     }
 
@@ -65,4 +79,35 @@ public class Artist {
         this.albums = albums;
     }
 
+    public Set<Song> getSong() {
+        return song;
+    }
+
+    public void setSong(Set<Song> song) {
+        this.song = song;
+    }
+
+    public Set<Genre> getArtistGenre() {
+        return artistGenre;
+    }
+
+    public void setArtistGenre(Set<Genre> artistGenre) {
+        this.artistGenre = artistGenre;
+    }
+    public void addAlbum(Album album) { // đồng bộ  hau chiều trong bộ nhớ
+        this.albums.add(album);
+        album.getArtist().add(this);
+    }
+    public void removeAlbum(Album album) {
+        this.albums.remove(album);
+        album.getArtist().remove(this);
+    }
+    public void addSong(Song song) {
+        this.song.add(song);
+        song.getArtists().add(this);
+    }
+    public void removeSong(Song song) {
+        this.song.remove(song);
+        song.getArtists().remove(this);
+    }
 }

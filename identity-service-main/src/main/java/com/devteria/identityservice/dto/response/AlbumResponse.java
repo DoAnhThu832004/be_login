@@ -10,7 +10,7 @@ public class AlbumResponse {
     private String description;
     private Status status;
     private String imageUrlA;
-
+    private Set<SongResponse> songs;
     public AlbumResponse() {
     }
 
@@ -60,5 +60,13 @@ public class AlbumResponse {
 
     public void setImageUrlA(String imageUrlA) {
         this.imageUrlA = imageUrlA;
+    }
+
+    public Set<SongResponse> getSongs() {
+        return songs;
+    }
+
+    public void setSongs(Set<SongResponse> songs) {
+        this.songs = songs;
     }
 }

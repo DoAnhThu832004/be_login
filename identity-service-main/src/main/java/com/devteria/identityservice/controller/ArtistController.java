@@ -73,4 +73,32 @@ public class ArtistController {
             throw new AppException(ErrorCode.UPLOAD_FAILED);
         }
     }
+    @PutMapping("/{artistId}/songs/{songId}")
+    ApiResponse<String> addArtistToSong(@PathVariable("artistId") String artistId, @PathVariable("songId") String songId) {
+        artistService.addArtistToSong(artistId,songId);
+        return ApiResponse.<String>builder()
+                .result("Song added to artist")
+                .build();
+    }
+    @DeleteMapping("/{artistId}/songs/{songId}")
+    ApiResponse<String> removeSongFromArtist(@PathVariable("artistId") String artistId, @PathVariable("songId") String songId) {
+        artistService.removeSongToArtist(artistId,songId);
+        return ApiResponse.<String>builder()
+                .result("Song removed to artist")
+                .build();
+    }
+    @PutMapping("/{artistId}/albums/{albumId}")
+    ApiResponse<String> addAlbumToArtist(@PathVariable("artistId") String artistId, @PathVariable("albumId") String albumId) {
+        artistService.addAlbumToArtist(artistId,albumId);
+        return ApiResponse.<String>builder()
+                .result("album added to artist")
+                .build();
+    }
+    @DeleteMapping("/{artistId}/albums/{albumId}")
+    ApiResponse<String> removeAlbumFromArtist(@PathVariable("artistId") String artistId, @PathVariable("albumId") String albumId) {
+        artistService.removeAlbumToArtist(artistId,albumId);
+        return ApiResponse.<String>builder()
+                .result("Song removed to artist")
+                .build();
+    }
 }

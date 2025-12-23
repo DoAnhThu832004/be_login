@@ -1,10 +1,14 @@
 package com.devteria.identityservice.dto.response;
 
+import java.util.Set;
+
 public class ArtistResponse {
     private String id;
     private String name;
     private String description;
     private String imageUrlAr;
+    private Set<SongResponse> songs;
+    private Set<AlbumResponse> albums;
 
     public ArtistResponse() {
     }
@@ -46,5 +50,21 @@ public class ArtistResponse {
 
     public void setImageUrlAr(String imageUrlAr) {
         this.imageUrlAr = imageUrlAr;
+    }
+
+    public Set<SongResponse> getSongs() {
+        return songs;
+    }
+
+    public void setSongs(Set<SongResponse> songs) {
+        this.songs = songs;
+    }
+
+    public Set<AlbumResponse> getAlbums() {
+        return albums;
+    }
+
+    public void setAlbums(Set<AlbumResponse> albums) {
+        this.albums = albums;
     }
 }
