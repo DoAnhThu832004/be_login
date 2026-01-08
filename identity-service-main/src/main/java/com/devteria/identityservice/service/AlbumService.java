@@ -56,6 +56,15 @@ public class AlbumService {
                 .orElseThrow(() -> new AppException(ErrorCode.ALBUM_NOT_EXISTED));
         return toAlbumResponse(album);
     }
+    public List<AlbumResponse> searchAlbums(String key) {
+        if(key == null || key.trim().isEmpty()) {
+            return List.of();
+        }
+        List<Album> albums = albumRepository.findByNameContainingIgnoreCase(key);
+        return albums.stream()
+                .map(AlbumService::toAlbumResponse)
+                .toList();
+    }
     public AlbumResponse updateAlbum(String id, AlbumUpdateRequest request) {
         Album album = albumRepository.findById(id)
                 .orElseThrow(()-> new AppException(ErrorCode.ALBUM_NOT_EXISTED));

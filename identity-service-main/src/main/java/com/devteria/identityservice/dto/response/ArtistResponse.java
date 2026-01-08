@@ -9,15 +9,19 @@ public class ArtistResponse {
     private String imageUrlAr;
     private Set<SongResponse> songs;
     private Set<AlbumResponse> albums;
+    private boolean isFollowed;
+    private long totalFollowers;
 
     public ArtistResponse() {
     }
 
-    public ArtistResponse(String id, String name, String description, String imageUrlAr) {
+    public ArtistResponse(String id, String name, String description, String imageUrlAr, boolean isFollowed,int followerCount) {
         this.id = id;
         this.name = name;
         this.description = description;
         this.imageUrlAr = imageUrlAr;
+        this.isFollowed = isFollowed;
+        this.totalFollowers = followerCount;
     }
 
     public String getId() {
@@ -66,5 +70,21 @@ public class ArtistResponse {
 
     public void setAlbums(Set<AlbumResponse> albums) {
         this.albums = albums;
+    }
+
+    public boolean isFollowed() {
+        return isFollowed;
+    }
+
+    public void setFollowed(boolean followed) {
+        isFollowed = followed;
+    }
+
+    public long getTotalFollowers() {
+        return totalFollowers;
+    }
+
+    public void setTotalFollowers(long totalFollowers) {
+        this.totalFollowers = totalFollowers;
     }
 }

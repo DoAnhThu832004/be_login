@@ -1,6 +1,7 @@
 package com.devteria.identityservice.entity;
 
 import jakarta.persistence.*;
+import org.hibernate.annotations.Formula;
 
 import java.util.AbstractList;
 import java.util.Set;
@@ -29,6 +30,8 @@ public class Artist {
             inverseJoinColumns = @JoinColumn(name = "genre_id")
     )
     private Set<Genre> artistGenre;
+    @Formula("(SELECT count(*) FROM followers f WHERE f.artist_id = id)")
+    private long totalFollowers;
     public Artist() {
     }
 
@@ -109,5 +112,13 @@ public class Artist {
     public void removeSong(Song song) {
         this.song.remove(song);
         song.getArtists().remove(this);
+    }
+
+    public long getTotalFollowers() {
+        return totalFollowers;
+    }
+
+    public void setTotalFollowers(long totalFollowers) {
+        this.totalFollowers = totalFollowers;
     }
 }

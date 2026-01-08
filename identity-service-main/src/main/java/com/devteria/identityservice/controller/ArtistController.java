@@ -3,7 +3,9 @@ package com.devteria.identityservice.controller;
 import com.devteria.identityservice.dto.request.ApiResponse;
 import com.devteria.identityservice.dto.request.ArtistCreationRequest;
 import com.devteria.identityservice.dto.request.ArtistUpdateRequest;
+import com.devteria.identityservice.dto.response.AlbumResponse;
 import com.devteria.identityservice.dto.response.ArtistResponse;
+import com.devteria.identityservice.dto.response.SongResponse;
 import com.devteria.identityservice.entity.Artist;
 import com.devteria.identityservice.exception.AppException;
 import com.devteria.identityservice.exception.ErrorCode;
@@ -57,6 +59,12 @@ public class ArtistController {
         artistService.deleteArtist(id);
         return ApiResponse.<String>builder()
                 .result("Artist has been deleted")
+                .build();
+    }
+    @GetMapping("/searchKey")
+    public ApiResponse<List<ArtistResponse>> searchSongs(@RequestParam String name) {
+        return ApiResponse.<List<ArtistResponse>>builder()
+                .result(artistService.searchArtist(name))
                 .build();
     }
     @PostMapping("/{artistId}/upload")

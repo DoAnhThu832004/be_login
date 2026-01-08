@@ -5,6 +5,7 @@ import com.devteria.identityservice.dto.request.AlbumCreationRequest;
 import com.devteria.identityservice.dto.request.AlbumUpdateRequest;
 import com.devteria.identityservice.dto.request.ApiResponse;
 import com.devteria.identityservice.dto.response.AlbumResponse;
+import com.devteria.identityservice.dto.response.SongResponse;
 import com.devteria.identityservice.entity.Album;
 import com.devteria.identityservice.exception.AppException;
 import com.devteria.identityservice.exception.ErrorCode;
@@ -39,6 +40,12 @@ public class AlbumController {
     ApiResponse<AlbumResponse> getAlbum(@PathVariable("albumId") String id) {
         return ApiResponse.<AlbumResponse>builder()
                 .result(albumService.getAlbum(id))
+                .build();
+    }
+    @GetMapping("/searchKey")
+    public ApiResponse<List<AlbumResponse>> searchSongs(@RequestParam String name) {
+        return ApiResponse.<List<AlbumResponse>>builder()
+                .result(albumService.searchAlbums(name))
                 .build();
     }
     @PutMapping("/{albumId}")

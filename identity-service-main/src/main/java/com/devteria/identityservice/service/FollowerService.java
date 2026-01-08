@@ -1,0 +1,55 @@
+package com.devteria.identityservice.service;
+
+import com.devteria.identityservice.entity.*;
+import com.devteria.identityservice.exception.AppException;
+import com.devteria.identityservice.exception.ErrorCode;
+import com.devteria.identityservice.repository.ArtistRepository;
+import com.devteria.identityservice.repository.FollowerRepository;
+import com.devteria.identityservice.repository.UserRepository;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+@Service
+public class FollowerService {
+    private final FollowerRepository followerRepository;
+    private final ArtistRepository artistRepository;
+    private final UserRepository userRepository;
+
+    public FollowerService(FollowerRepository followerRepository, ArtistRepository artistRepository, UserRepository userRepository) {
+        this.followerRepository = followerRepository;
+        this.artistRepository = artistRepository;
+        this.userRepository = userRepository;
+    }
+    @Transactional
+    public void followArtist(String artistId) {
+        String username = SecurityContextHolder.getContext().getAuthentication().getName();
+        User user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_EXISTED));
+
+        Artist artist = artistRepository.findById(artistId)
+                .orElseThrow(() -> new AppException(ErrorCode.ARTIST_NOT_EXISTED)); // Nhớ thêm ErrorCode này nếu chưa có
+
+        if (followerRepository.findByUserAndArtist(user,artist).isEmpty()) {
+            Follower follower = new Follower(user, artist);
+            followerRepository.save(follower);
+        }
+    }
+    @Transactional
+    public void unfollowArtist(String artistId) {
+        String username = SecurityContextHolder.getContext().getAuthentication().getName();
+        User user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_EXISTED));
+
+        Artist artist = artistRepository.findById(artistId)
+                .orElseThrow(() -> new AppException(ErrorCode.ARTIST_NOT_EXISTED));
+
+        followerRepository.findByUserAndArtist(user, artist)
+                .ifPresent(followerRepository::delete);
+    }
+    public long countFollowersOfArtist(String artistId) {
+        Artist artist = artistRepository.findById(artistId)
+                .orElseThrow(() -> new AppException(ErrorCode.ARTIST_NOT_EXISTED));
+        return followerRepository.countByArtist(artist);
+    }
+}

@@ -4,14 +4,16 @@ public class PlaylistResponse {
     private String id;
     private String title;
     private String description;
+    private String imageUrlP;
 
     public PlaylistResponse() {
     }
 
-    public PlaylistResponse(String id, String title, String description) {
+    public PlaylistResponse(String id, String title, String description,String imageUrlP) {
         this.id = id;
         this.title = title;
         this.description = description;
+        this.imageUrlP = imageUrlP;
     }
 
     public String getId() {
@@ -36,5 +38,13 @@ public class PlaylistResponse {
 
     public void setDescription(String description) {
         this.description = description;
+    }
+
+    public String getImageUrlP() {
+        return imageUrlP;
+    }
+
+    public void setImageUrlP(String imageUrlP) {
+        this.imageUrlP = imageUrlP;
     }
 }

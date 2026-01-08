@@ -11,6 +11,7 @@ public class Playlist {
     private String id;
     private String title;
     private String description;
+    private String imageUrlP;
 
     @ManyToMany
     @JoinTable(
@@ -23,10 +24,11 @@ public class Playlist {
     public Playlist() {
     }
 
-    public Playlist(String id, String title, String description) {
+    public Playlist(String id, String title, String description,String imageUrlP) {
         this.id = id;
         this.title = title;
         this.description = description;
+        this.imageUrlP = imageUrlP;
     }
 
     public String getId() {
@@ -59,5 +61,13 @@ public class Playlist {
 
     public void setSongPlayList(Set<Song> songPlayList) {
         this.songPlayList = songPlayList;
+    }
+
+    public String getImageUrlP() {
+        return imageUrlP;
+    }
+
+    public void setImageUrlP(String imageUrlP) {
+        this.imageUrlP = imageUrlP;
     }
 }

@@ -3,10 +3,17 @@ package com.devteria.identityservice.controller;
 import com.devteria.identityservice.dto.request.ApiResponse;
 import com.devteria.identityservice.dto.request.PlaylistCreationRequest;
 import com.devteria.identityservice.dto.request.PlaylistUpdateRequest;
+import com.devteria.identityservice.dto.response.ArtistResponse;
 import com.devteria.identityservice.dto.response.PlaylistResponse;
+import com.devteria.identityservice.entity.Artist;
+import com.devteria.identityservice.entity.Playlist;
+import com.devteria.identityservice.exception.AppException;
+import com.devteria.identityservice.exception.ErrorCode;
+import com.devteria.identityservice.service.ArtistService;
 import com.devteria.identityservice.service.PlaylistService;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
@@ -48,5 +55,19 @@ public class PlaylistController {
         return ApiResponse.<String>builder()
                 .result("Playlist updated successfully")
                 .build();
+    }
+    @PostMapping("/{playlistId}/upload")
+    ApiResponse<PlaylistResponse> uploadPlaylistFiles(
+            @PathVariable("playlistId") String id,
+            @RequestParam("image") MultipartFile image
+    ) {
+        try {
+            Playlist updated = playlistService.uploadPlaylistFiles(id,image);
+            return ApiResponse.<PlaylistResponse>builder()
+                    .result(PlaylistService.toPlaylistResponse(updated))
+                    .build();
+        } catch (Exception e) {
+            throw new AppException(ErrorCode.UPLOAD_FAILED);
+        }
     }
 }

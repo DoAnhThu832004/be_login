@@ -13,13 +13,16 @@ public class SongResponse {
     private Long duration;
     private LocalDateTime releasedDate;
     private SongType type;
+    private String artistName;
     private String imageUrl;
     private String audioUrl;
+    private boolean isFavorite;
+
 
     public SongResponse() {
     }
 
-    public SongResponse(String id, String name, String description, Status status, Long duration, LocalDateTime releasedDate, SongType type, String imageUrl, String audioUrl) {
+    public SongResponse(String id, String name, String description, Status status, Long duration, LocalDateTime releasedDate, SongType type,String artistName, String imageUrl, String audioUrl,boolean isFavorite) {
         this.id = id;
         this.name = name;
         this.description = description;
@@ -27,8 +30,10 @@ public class SongResponse {
         this.duration = duration;
         this.releasedDate = releasedDate;
         this.type = type;
+        this.artistName = artistName;
         this.imageUrl = imageUrl;
         this.audioUrl = audioUrl;
+        this.isFavorite = isFavorite;
     }
 
     public String getId() {
@@ -101,5 +106,21 @@ public class SongResponse {
 
     public void setAudioUrl(String audioUrl) {
         this.audioUrl = audioUrl;
+    }
+
+    public String getArtistName() {
+        return artistName;
+    }
+
+    public void setArtistName(String artistName) {
+        this.artistName = artistName;
+    }
+
+    public boolean isFavorite() {
+        return isFavorite;
+    }
+
+    public void setFavorite(boolean favorite) {
+        isFavorite = favorite;
     }
 }

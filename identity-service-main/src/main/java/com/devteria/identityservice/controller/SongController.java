@@ -48,6 +48,12 @@ public class SongController {
                 .result(songService.getSongByName(name))
                 .build();
     }
+    @GetMapping("/searchKey")
+    public ApiResponse<List<SongResponse>> searchSongs(@RequestParam String name) {
+        return ApiResponse.<List<SongResponse>>builder()
+                .result(songService.searchSongs(name))
+                .build();
+    }
     @PutMapping("/{songId}")
     public ApiResponse<SongResponse> updateSong(@PathVariable("songId") String id,@RequestBody @Valid SongUpdateRequest request) {
         return ApiResponse.<SongResponse>builder()

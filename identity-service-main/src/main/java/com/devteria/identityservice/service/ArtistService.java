@@ -11,20 +11,19 @@ import com.devteria.identityservice.dto.response.SongResponse;
 import com.devteria.identityservice.entity.Album;
 import com.devteria.identityservice.entity.Artist;
 import com.devteria.identityservice.entity.Song;
+import com.devteria.identityservice.entity.User;
 import com.devteria.identityservice.exception.AppException;
 import com.devteria.identityservice.exception.ErrorCode;
-import com.devteria.identityservice.repository.AlbumRepository;
-import com.devteria.identityservice.repository.ArtistRepository;
-import com.devteria.identityservice.repository.GenreRepository;
-import com.devteria.identityservice.repository.SongRepository;
+import com.devteria.identityservice.repository.*;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
+import java.util.stream.Collectors;
 
 @Service
 public class ArtistService {
@@ -34,41 +33,74 @@ public class ArtistService {
     private final AlbumRepository albumRepository;
     private final Cloudinary cloudinary;
 
-    public ArtistService(ArtistRepository artistRepository, SongRepository songRepository, GenreRepository genreRepository,AlbumRepository albumRepository,Cloudinary cloudinary) {
+    private final FollowerRepository followerRepository;
+    private final UserRepository userRepository;
+
+    public ArtistService(ArtistRepository artistRepository, SongRepository songRepository, GenreRepository genreRepository, AlbumRepository albumRepository, Cloudinary cloudinary, FollowerRepository followerRepository, UserRepository userRepository) {
         this.artistRepository = artistRepository;
         this.songRepository = songRepository;
         this.genreRepository = genreRepository;
         this.albumRepository = albumRepository;
         this.cloudinary = cloudinary;
+        this.followerRepository = followerRepository;
+        this.userRepository = userRepository;
     }
+    @Transactional
     public ArtistResponse createArtist(ArtistCreationRequest request) {
         Artist artist = toArtist(request);
         return toArtistResponse(artistRepository.save(artist));
     }
     public List<ArtistResponse> getArtists() {
-        return artistRepository.findAll().stream()
-                .map(ArtistService::toArtistResponse)
-                .toList();
+        List<Artist> artists = artistRepository.findAll();
+        Set<String> followArtistId = getFollowerArtistIdOfCurrentUser();
+        return artists.stream()
+                .map( artist -> {
+                    ArtistResponse response = toArtistResponse(artist);
+                    response.setFollowed(followArtistId.contains(artist.getId()));
+                    return response;
+                })
+                .collect(Collectors.toList());
     }
     public ArtistResponse getArtist(String id) {
         Artist artist = artistRepository.findById(id)
                 .orElseThrow(() -> new AppException(ErrorCode.ARTIST_NOT_EXISTED));
-        return toArtistResponse(artist);
+        ArtistResponse response = toArtistResponse(artist);
+        response.setFollowed(isArtistFollowerByCurrentUser(artist));
+        return response;
     }
     public ArtistResponse getArtistName(String name) {
         Artist artist = artistRepository.findByName(name)
                 .orElseThrow(() -> new AppException(ErrorCode.ARTIST_NOT_EXISTED));
-        return toArtistResponse(artist);
+        ArtistResponse response = toArtistResponse(artist);
+        response.setFollowed(isArtistFollowerByCurrentUser(artist));
+        return response;
     }
+    public List<ArtistResponse> searchArtist(String key) {
+        if(key == null || key.trim().isEmpty()) {
+            return List.of();
+        }
+        List<Artist> artists = artistRepository.findByNameContainingIgnoreCase(key);
+        Set<String> followArtistId = getFollowerArtistIdOfCurrentUser();
+        return artists.stream()
+                .map( artist -> {
+                    ArtistResponse response = toArtistResponse(artist);
+                    response.setFollowed(followArtistId.contains(artist.getId()));
+                    return response;
+                })
+                .collect(Collectors.toList());
+    }
+    @Transactional
     public ArtistResponse updateArtist(String id, ArtistUpdateRequest request) {
         Artist artist = artistRepository.findById(id)
-                .orElseThrow(()-> new AppException(ErrorCode.ALBUM_NOT_EXISTED));
+                .orElseThrow(()-> new AppException(ErrorCode.ARTIST_NOT_EXISTED));
         mapRequestToArtist(artist,request);
         return toArtistResponse(artistRepository.save(artist));
     }
+    @Transactional
     public void deleteArtist(String id) {
         artistRepository.deleteById(id);
     }
+    @Transactional
     public void addArtistToSong(String artistId, String songId) {
         Artist artist = artistRepository.findById(artistId)
                 .orElseThrow(() -> new AppException(ErrorCode.ARTIST_NOT_EXISTED));
@@ -77,6 +109,7 @@ public class ArtistService {
         artist.addSong(song);
         artistRepository.save(artist);
     }
+    @Transactional
     public void removeSongToArtist(String artistId,String songId) {
         Artist artist = artistRepository.findById(artistId)
                 .orElseThrow(()-> new AppException(ErrorCode.ARTIST_NOT_EXISTED));
@@ -85,6 +118,7 @@ public class ArtistService {
         artist.removeSong(song);
         artistRepository.save(artist);
     }
+    @Transactional
     public void addAlbumToArtist(String artistId, String albumId) {
         Artist artist = artistRepository.findById(artistId)
                 .orElseThrow(() -> new AppException(ErrorCode.ARTIST_NOT_EXISTED));
@@ -93,6 +127,7 @@ public class ArtistService {
         artist.addAlbum(album);
         artistRepository.save(artist);
     }
+    @Transactional
     public void removeAlbumToArtist(String artistId, String albumId) {
         Artist artist = artistRepository.findById(artistId)
                 .orElseThrow(() -> new AppException(ErrorCode.ARTIST_NOT_EXISTED));
@@ -124,6 +159,8 @@ public class ArtistService {
         response.setName(artist.getName());
         response.setDescription(artist.getDescription());
         response.setImageUrlAr(artist.getImageUrlAr());
+        response.setTotalFollowers(artist.getTotalFollowers());
+        response.setFollowed(false);
         if (artist.getSong() != null) {
             Set<SongResponse> songResponses = new HashSet<>();
             for (Song song : artist.getSong()) {
@@ -149,6 +186,9 @@ public class ArtistService {
     public Artist uploadArtistFiles(String artistId, MultipartFile image) throws IOException {
         Artist artist = artistRepository.findById(artistId)
                 .orElseThrow(() -> new AppException(ErrorCode.ARTIST_NOT_EXISTED));
+        if(image == null || image.isEmpty()) {
+            throw new AppException(ErrorCode.INVALID_KEY);
+        }
         Map uploadImage = cloudinary.uploader().upload(image.getBytes(),
                 ObjectUtils.asMap("folder", "artist_app/images"));
 
@@ -156,4 +196,29 @@ public class ArtistService {
 
         return artistRepository.save(artist);
     }
+    private User getCurrentUser() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication != null &&
+                authentication.isAuthenticated() &&
+                !"anonymousUser".equals(authentication.getPrincipal())) {
+            String username = authentication.getName();
+            return userRepository.findByUsername(username).orElse(null);
+        }
+        return null;
+    }
+    private Set<String> getFollowerArtistIdOfCurrentUser() {
+        User user = getCurrentUser();
+        if (user == null) {
+            return Collections.emptySet();
+        }
+        return followerRepository.findAllByUser(user).stream()
+                .map(follower -> follower.getArtist().getId())
+                .collect(Collectors.toSet());
+    }
+    private boolean isArtistFollowerByCurrentUser(Artist artist) {
+        User user = getCurrentUser();
+        if(user == null) return false;
+        return followerRepository.existsByUserAndArtist(user,artist);
+    }
+
 }
