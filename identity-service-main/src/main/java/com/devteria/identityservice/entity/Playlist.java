@@ -12,6 +12,9 @@ public class Playlist {
     private String title;
     private String description;
     private String imageUrlP;
+    @ManyToOne
+    @JoinColumn(name = "user_id")
+    private User user;
 
     @ManyToMany
     @JoinTable(
@@ -69,5 +72,13 @@ public class Playlist {
 
     public void setImageUrlP(String imageUrlP) {
         this.imageUrlP = imageUrlP;
+    }
+
+    public User getUser() {
+        return user;
+    }
+
+    public void setUser(User user) {
+        this.user = user;
     }
 }

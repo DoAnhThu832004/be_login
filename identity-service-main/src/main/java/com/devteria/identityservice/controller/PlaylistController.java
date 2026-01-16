@@ -1,5 +1,6 @@
 package com.devteria.identityservice.controller;
 
+import com.cloudinary.Api;
 import com.devteria.identityservice.dto.request.ApiResponse;
 import com.devteria.identityservice.dto.request.PlaylistCreationRequest;
 import com.devteria.identityservice.dto.request.PlaylistUpdateRequest;
@@ -35,6 +36,12 @@ public class PlaylistController {
     public ApiResponse<List<PlaylistResponse>> getPlaylists() {
         return ApiResponse.<List<PlaylistResponse>>builder()
                 .result(playlistService.getPlayLists())
+                .build();
+    }
+    @GetMapping("/myList")
+    public ApiResponse<List<PlaylistResponse>> getMyPlaylists() {
+        return ApiResponse.<List<PlaylistResponse>>builder()
+                .result(playlistService.getMyPlaylists())
                 .build();
     }
     @GetMapping("/{playlistId}")

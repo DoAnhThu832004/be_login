@@ -6,16 +6,15 @@ import com.devteria.identityservice.dto.request.GenreUpdateRequest;
 import com.devteria.identityservice.dto.request.PlaylistCreationRequest;
 import com.devteria.identityservice.dto.request.PlaylistUpdateRequest;
 import com.devteria.identityservice.dto.response.PlaylistResponse;
-import com.devteria.identityservice.entity.Artist;
-import com.devteria.identityservice.entity.Genre;
-import com.devteria.identityservice.entity.Playlist;
-import com.devteria.identityservice.entity.Song;
+import com.devteria.identityservice.entity.*;
 import com.devteria.identityservice.enums.Status;
 import com.devteria.identityservice.exception.AppException;
 import com.devteria.identityservice.exception.ErrorCode;
 import com.devteria.identityservice.repository.PlaylistRepository;
 import com.devteria.identityservice.repository.SongRepository;
+import com.devteria.identityservice.repository.UserRepository;
 import jakarta.validation.Valid;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.multipart.MultipartFile;
@@ -30,21 +29,35 @@ public class PlaylistService {
     private final PlaylistRepository playlistRepository;
     private final SongRepository songRepository;
     private final Cloudinary cloudinary;
+    private final UserRepository userRepository;
 
-    public PlaylistService(PlaylistRepository playlistRepository, SongRepository songRepository,Cloudinary cloudinary) {
+    public PlaylistService(PlaylistRepository playlistRepository, SongRepository songRepository,Cloudinary cloudinary,UserRepository userRepository) {
         this.playlistRepository = playlistRepository;
         this.songRepository = songRepository;
         this.cloudinary = cloudinary;
+        this.userRepository = userRepository;
     }
     public PlaylistResponse createPlaylist(PlaylistCreationRequest request) {
         Playlist playlist = toPlaylist(request);
+        String name = SecurityContextHolder.getContext().getAuthentication().getName();
+        User user = userRepository.findByUsername(name)
+                .orElseThrow(()-> new AppException(ErrorCode.USER_NOT_EXISTED));
+        playlist.setUser(user);
         return toPlaylistResponse(playlistRepository.save(playlist));
 
     }
     public List<PlaylistResponse> getPlayLists() {
-        return playlistRepository.findAll().stream()
+        return playlistRepository.findAllAdminPlaylists().stream()
                 .map(PlaylistService::toPlaylistResponse)
                 .toList();
+    }
+    public List<PlaylistResponse> getMyPlaylists() {
+        String username = SecurityContextHolder.getContext().getAuthentication().getName();
+        User user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_EXISTED));
+
+        return playlistRepository.findByUser(user).stream()
+                .map(PlaylistService::toPlaylistResponse).toList();
     }
     public PlaylistResponse getPlaylist(String id) {
         Playlist playlist = playlistRepository.findById(id)
