@@ -1,8 +1,12 @@
 package com.devteria.identityservice.service;
 
+import java.io.IOException;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 
+import com.cloudinary.Cloudinary;
+import com.cloudinary.utils.ObjectUtils;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.access.prepost.PostAuthorize;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -26,6 +30,7 @@ import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.web.multipart.MultipartFile;
 
 @Service
 @RequiredArgsConstructor // Tự động sinh ra constructor chứa tất cả các field final hoặc có @NonNull trong class.
@@ -36,6 +41,7 @@ public class UserService {
     RoleRepository roleRepository;
     UserMapper userMapper;
     PasswordEncoder passwordEncoder;
+    Cloudinary cloudinary;
 
     public UserResponse createUser(UserCreationRequest request) {
         User user = userMapper.toUser(request);
@@ -92,5 +98,18 @@ public class UserService {
     public UserResponse getUser(String id) {
         return userMapper.toUserResponse(
                 userRepository.findById(id).orElseThrow(() -> new AppException(ErrorCode.USER_NOT_EXISTED)));
+    }
+    public UserResponse uploadProfileImage(String userId, MultipartFile image) throws IOException {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_EXISTED));
+        if (image == null || image.isEmpty()) {
+            throw new AppException(ErrorCode.INVALID_KEY);
+        }
+        Map uploadResult = cloudinary.uploader().upload(image.getBytes(),
+                ObjectUtils.asMap("folder", "user_app/images"));
+
+        String imageUrl = uploadResult.get("secure_url").toString();
+        user.setImageUrl(imageUrl);
+        return userMapper.toUserResponse(userRepository.save(user));
     }
 }

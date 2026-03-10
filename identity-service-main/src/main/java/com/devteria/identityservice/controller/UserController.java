@@ -1,5 +1,6 @@
 package com.devteria.identityservice.controller;
 
+import java.io.IOException;
 import java.util.List;
 
 import jakarta.validation.Valid;
@@ -16,6 +17,7 @@ import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.web.multipart.MultipartFile;
 
 @RestController
 @RequestMapping("/users")
@@ -64,6 +66,16 @@ public class UserController {
         return ApiResponse.<UserResponse>builder()
                 .result(userService.updateUser(userId, request))
                 .message("this is update user")
+                .build();
+    }
+    @PostMapping(value = "/{userId}/upload")
+    ApiResponse<UserResponse> uploadProfileImage(
+            @PathVariable("userId") String userId,
+            @RequestParam("image") MultipartFile image
+    ) throws IOException {
+        return ApiResponse.<UserResponse>builder()
+                .result(userService.uploadProfileImage(userId, image))
+                .message("Profile image uploaded successfully")
                 .build();
     }
 }
