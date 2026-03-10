@@ -1,6 +1,7 @@
 package com.devteria.identityservice.dto.response;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 public class CommentResponse {
     private String id;
@@ -10,6 +11,8 @@ public class CommentResponse {
     private String username;
     private String songTitle;
     private boolean owner;
+    private List<CommentResponse> replies;
+    private String parentId;
 
     public CommentResponse() {
     }
@@ -78,5 +81,21 @@ public class CommentResponse {
 
     public void setOwner(boolean owner) {
         this.owner = owner;
+    }
+
+    public List<CommentResponse> getReplies() {
+        return replies;
+    }
+
+    public void setReplies(List<CommentResponse> replies) {
+        this.replies = replies;
+    }
+
+    public String getParentId() {
+        return parentId;
+    }
+
+    public void setParentId(String parentId) {
+        this.parentId = parentId;
     }
 }

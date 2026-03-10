@@ -3,6 +3,7 @@ package com.devteria.identityservice.entity;
 import jakarta.persistence.*;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Entity
 public class Comment {
@@ -18,6 +19,12 @@ public class Comment {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "song_id")
     private Song song;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "parent_id")
+    private Comment parent;
+
+    @OneToMany(mappedBy = "parent", cascade = CascadeType.ALL)
+    private List<Comment> replies;
 
     @PrePersist
     protected void onCreate() {
@@ -26,13 +33,15 @@ public class Comment {
     public Comment() {
     }
 
-    public Comment(String id, String text, boolean edited, LocalDateTime createAt, User user, Song song) {
+    public Comment(String id, String text, boolean edited, LocalDateTime createAt, User user, Song song, Comment parent, List<Comment> replies) {
         this.id = id;
         this.text = text;
         this.edited = edited;
         this.createAt = createAt;
         this.user = user;
         this.song = song;
+        this.parent = parent;
+        this.replies = replies;
     }
 
     public String getId() {
@@ -81,5 +90,21 @@ public class Comment {
 
     public void setSong(Song song) {
         this.song = song;
+    }
+
+    public Comment getParent() {
+        return parent;
+    }
+
+    public void setParent(Comment parent) {
+        this.parent = parent;
+    }
+
+    public List<Comment> getReplies() {
+        return replies;
+    }
+
+    public void setReplies(List<Comment> replies) {
+        this.replies = replies;
     }
 }

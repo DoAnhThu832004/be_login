@@ -48,10 +48,19 @@ public class CommentService {
         comment.setUser(user);
         comment.setSong(song);
 
+        if (request.getParentId() != null) {
+            Comment parentComment = commentRepository.findById(request.getParentId())
+                    .orElseThrow(() -> new AppException(ErrorCode.UNCATEGORIZED_EXCEPTION));
+            comment.setParent(parentComment);
+        }
+
         return toCommentResponse(commentRepository.save(comment));
     }
     public List<CommentResponse> getCommentsBySong(String songId) {
-        return commentRepository.findAllBySongId(songId).stream()
+        var comments = commentRepository.findAllBySongId(songId);
+
+        return comments.stream()
+                .filter(comment -> comment.getParent() == null)
                 .map(CommentService::toCommentResponse)
                 .toList();
     }
@@ -121,6 +130,14 @@ public class CommentService {
         if (comment.getSong() != null) {
             // Sửa lỗi 2 & 3: Không setSongId và lấy tên bài hát bằng getName() thay vì getTitle()
             response.setSongTitle(comment.getSong().getName());
+        }
+        if (comment.getParent() != null) {
+            response.setParentId(comment.getParent().getId());
+        }
+        if (comment.getReplies() != null) {
+            response.setReplies(comment.getReplies().stream()
+                    .map(CommentService::toCommentResponse)
+                    .toList());
         }
 
         return response;
