@@ -37,6 +37,9 @@ public class Song {
     private Album album;
     @ManyToMany(mappedBy = "song")
     private Set<Artist> artists;
+
+    @Column(name = "play_count", columnDefinition = "bigint default 0")
+    private Long playCount = 0L;
     public Song() {
     }
 
@@ -162,5 +165,14 @@ public class Song {
 
     public void setArtists(Set<Artist> artists) {
         this.artists = artists;
+    }
+
+    // Bổ sung các phương thức Getter và Setter cho thuộc tính mới
+    public Long getPlayCount() {
+        return playCount;
+    }
+
+    public void setPlayCount(Long playCount) {
+        this.playCount = playCount;
     }
 }

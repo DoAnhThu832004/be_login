@@ -4,6 +4,7 @@ import com.cloudinary.Api;
 import com.devteria.identityservice.dto.request.ApiResponse;
 import com.devteria.identityservice.dto.request.SongCreationRequest;
 import com.devteria.identityservice.dto.request.SongUpdateRequest;
+import com.devteria.identityservice.dto.response.PageResponse;
 import com.devteria.identityservice.dto.response.SongResponse;
 import com.devteria.identityservice.entity.Song;
 import com.devteria.identityservice.exception.AppException;
@@ -54,6 +55,16 @@ public class SongController {
                 .result(songService.searchSongs(name))
                 .build();
     }
+    @GetMapping("/admin/searchKey")
+    public ApiResponse<PageResponse<SongResponse>> searchSongsForAdmin(
+            @RequestParam String name,
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "20") int size
+    ) {
+        return ApiResponse.<PageResponse<SongResponse>>builder()
+                .result(songService.searchSongsForAdmin(name, page, size))
+                .build();
+    }
     @PutMapping("/{songId}")
     public ApiResponse<SongResponse> updateSong(@PathVariable("songId") String id,@RequestBody @Valid SongUpdateRequest request) {
         return ApiResponse.<SongResponse>builder()
@@ -80,5 +91,21 @@ public class SongController {
         } catch (Exception e) {
             throw new AppException(ErrorCode.UPLOAD_FAILED);
         }
+    }
+    // Endpoint ghi nhận lượt nghe, gọi khi người dùng bắt đầu phát nhạc
+    @PostMapping("/{songId}/play")
+    public ApiResponse<String> incrementPlayCount(@PathVariable("songId") String id) {
+        songService.incrementPlayCount(id);
+        return ApiResponse.<String>builder()
+                .result("Lượt nghe đã được cập nhật thành công")
+                .build();
+    }
+
+    // Endpoint truy xuất bảng xếp hạng
+    @GetMapping("/top-charts")
+    public ApiResponse<List<SongResponse>> getTopSongs() {
+        return ApiResponse.<List<SongResponse>>builder()
+                .result(songService.getTopSongs())
+                .build();
     }
 }

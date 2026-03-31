@@ -4,6 +4,7 @@ import com.cloudinary.Cloudinary;
 import com.cloudinary.utils.ObjectUtils;
 import com.devteria.identityservice.dto.request.SongCreationRequest;
 import com.devteria.identityservice.dto.request.SongUpdateRequest;
+import com.devteria.identityservice.dto.response.PageResponse;
 import com.devteria.identityservice.dto.response.SongResponse;
 import com.devteria.identityservice.entity.Artist;
 import com.devteria.identityservice.entity.Song;
@@ -17,12 +18,15 @@ import com.devteria.identityservice.repository.FavoriteRepository;
 import com.devteria.identityservice.repository.SongRepository;
 import com.devteria.identityservice.repository.UserRepository;
 import org.hibernate.mapping.Collection;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
+import org.springframework.data.domain.Pageable;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
@@ -95,7 +99,8 @@ public class SongService {
         if(key == null || key.trim().isEmpty()) {
             return List.of();
         }
-        List<Song> songs = songRepository.findByNameContainingIgnoreCase(key);
+        Pageable limit = PageRequest.of(0,50);
+        List<Song> songs = songRepository.findByNameContainingIgnoreCase(key,limit).getContent();
         Set<String> likedSongIds = getLikedSongIdsOfCurrentUser();
         return songs.stream()
                 .map(song -> {
@@ -104,6 +109,33 @@ public class SongService {
                     return response;
                 })
                 .collect(Collectors.toList());
+    }
+    public PageResponse<SongResponse> searchSongsForAdmin(String key, int page, int size) {
+        if (key == null || key.trim().isEmpty()) {
+            return new PageResponse<>(page, 0, size, 0, Collections.emptyList());
+        }
+
+        Pageable pageable = PageRequest.of(page - 1, size);
+
+        Page<Song> songPage = songRepository.findByNameContainingIgnoreCase(key, pageable);
+
+        Set<String> likedSongIds = getLikedSongIdsOfCurrentUser();
+
+        List<SongResponse> songResponses = songPage.getContent().stream()
+                .map(song -> {
+                    SongResponse response = toSongResponse(song);
+                    response.setFavorite(likedSongIds.contains(song.getId()));
+                    return response;
+                })
+                .collect(Collectors.toList());
+
+        return new PageResponse<>(
+                page,
+                songPage.getTotalPages(),
+                songPage.getSize(),
+                songPage.getTotalElements(),
+                songResponses
+        );
     }
     @Transactional
     public void deleteSong(String id) {
@@ -149,6 +181,28 @@ public class SongService {
         return songRepository.save(song);
 
     }
+    @Transactional
+    public void incrementPlayCount(String songId) {
+        Song song = songRepository.findById(songId)
+                .orElseThrow(() -> new AppException(ErrorCode.SONG_NOT_EXISTED));
+
+        Long currentCount = song.getPlayCount() == null ? 0L : song.getPlayCount();
+        song.setPlayCount(currentCount + 1);
+
+        songRepository.save(song);
+    }
+    public List<SongResponse> getTopSongs() {
+        List<Song> topSongs = songRepository.findTop10ByOrderByPlayCountDesc();
+        Set<String> likedSongIds = getLikedSongIdsOfCurrentUser();
+
+        return topSongs.stream()
+                .map(song -> {
+                    SongResponse response = toSongResponse(song);
+                    response.setFavorite(likedSongIds.contains(song.getId()));
+                    return response;
+                })
+                .collect(Collectors.toList());
+    }
     public static SongResponse toSongResponse(Song song) {
         if (song == null) return null;
         SongResponse response = new SongResponse();
@@ -162,6 +216,7 @@ public class SongService {
         response.setImageUrl(song.getImageUrl());
         response.setAudioUrl(song.getAudioUrl());
         response.setFavorite(false);
+        response.setPlayCount(song.getPlayCount() != null ? song.getPlayCount() : 0L);
         if (song.getArtists() != null && !song.getArtists().isEmpty()) {
             // Cách 1: Sử dụng Stream API (Hiện đại, an toàn)
             Artist firstArtist = song.getArtists().stream().findFirst().orElse(null);
