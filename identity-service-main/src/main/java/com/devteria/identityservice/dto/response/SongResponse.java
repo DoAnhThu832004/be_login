@@ -17,7 +17,7 @@ public class SongResponse {
     private String imageUrl;
     private String audioUrl;
     private boolean isFavorite;
-
+    private Long playCount;
 
     public SongResponse() {
     }
@@ -122,5 +122,12 @@ public class SongResponse {
 
     public void setFavorite(boolean favorite) {
         isFavorite = favorite;
+    }
+    public Long getPlayCount() {
+        return playCount;
+    }
+
+    public void setPlayCount(Long playCount) {
+        this.playCount = playCount;
     }
 }

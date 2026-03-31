@@ -24,6 +24,7 @@ public class ArtistController {
     public ArtistController(ArtistService artistService) {
         this.artistService = artistService;
     }
+
     @PostMapping()
     ApiResponse<ArtistResponse> createArtist(@RequestBody @Valid ArtistCreationRequest request) {
         return ApiResponse.<ArtistResponse>builder()
