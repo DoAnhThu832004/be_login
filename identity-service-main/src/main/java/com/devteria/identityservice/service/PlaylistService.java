@@ -5,7 +5,9 @@ import com.cloudinary.utils.ObjectUtils;
 import com.devteria.identityservice.dto.request.GenreUpdateRequest;
 import com.devteria.identityservice.dto.request.PlaylistCreationRequest;
 import com.devteria.identityservice.dto.request.PlaylistUpdateRequest;
+import com.devteria.identityservice.dto.response.PageResponse;
 import com.devteria.identityservice.dto.response.PlaylistResponse;
+import com.devteria.identityservice.dto.response.SongResponse;
 import com.devteria.identityservice.entity.*;
 import com.devteria.identityservice.enums.Status;
 import com.devteria.identityservice.exception.AppException;
@@ -14,11 +16,14 @@ import com.devteria.identityservice.repository.PlaylistRepository;
 import com.devteria.identityservice.repository.SongRepository;
 import com.devteria.identityservice.repository.UserRepository;
 import jakarta.validation.Valid;
+import org.springframework.data.domain.Page;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.multipart.MultipartFile;
-
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.domain.PageRequest;
 import javax.swing.*;
 import java.io.IOException;
 import java.util.List;
@@ -91,6 +96,48 @@ public class PlaylistService {
         playlist.setImageUrlP(uploadImage.get("secure_url").toString());
 
         return playlistRepository.save(playlist);
+    }
+    public PlaylistResponse addSongToPlaylist(String playlistId, String songId) {
+        Playlist playlist = playlistRepository.findById(playlistId)
+                .orElseThrow(() -> new AppException(ErrorCode.PLAYLIST_NOT_EXISTED));
+
+        Song song = songRepository.findById(songId)
+                .orElseThrow(() -> new AppException(ErrorCode.SONG_NOT_EXISTED)); // Đảm bảo bạn có ErrorCode.SONG_NOT_EXISTED
+
+        playlist.getSongPlayList().add(song);
+        return toPlaylistResponse(playlistRepository.save(playlist));
+    }
+    public PlaylistResponse removeSongFromPlaylist(String playlistId, String songId) {
+        Playlist playlist = playlistRepository.findById(playlistId)
+                .orElseThrow(() -> new AppException(ErrorCode.PLAYLIST_NOT_EXISTED));
+
+        Song song = songRepository.findById(songId)
+                .orElseThrow(() -> new AppException(ErrorCode.SONG_NOT_EXISTED));
+
+        playlist.getSongPlayList().remove(song);
+        return toPlaylistResponse(playlistRepository.save(playlist));
+    }
+    // Cần import PageResponse, SongResponse, Pageable, PageRequest...
+    public PageResponse<SongResponse> getSongsInPlaylist(String playlistId, int page, int size) {
+        // Sắp xếp theo tên bài hát mặc định
+        Sort sort = Sort.by("name").ascending();
+        Pageable pageable = PageRequest.of(page - 1, size, sort);
+
+        Page<Song> pageData = songRepository.findByPlaylists_Id(playlistId, pageable);
+
+        // Chuyển đổi danh sách Entity sang DTO thủ công (giả định dùng SongService.toSongResponse)
+        List<SongResponse> songResponses = pageData.getContent().stream()
+                .map(SongService::toSongResponse)
+                .toList();
+
+        // Khởi tạo PageResponse bằng Constructor thay vì Builder
+        return new PageResponse<>(
+                page,
+                pageData.getTotalPages(),
+                pageData.getSize(),
+                pageData.getTotalElements(),
+                songResponses
+        );
     }
     public Playlist toPlaylist(PlaylistCreationRequest request) {
         if(request == null) return null;

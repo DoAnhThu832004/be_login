@@ -11,6 +11,8 @@ import com.devteria.identityservice.exception.AppException;
 import com.devteria.identityservice.exception.ErrorCode;
 import com.devteria.identityservice.service.SongService;
 import jakarta.validation.Valid;
+import org.springframework.core.io.Resource;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -107,6 +109,23 @@ public class SongController {
     public ApiResponse<List<SongResponse>> getTopSongs() {
         return ApiResponse.<List<SongResponse>>builder()
                 .result(songService.getTopSongs())
+                .build();
+    }
+    // Trong SongController.java
+    @GetMapping("/{songId}/download")
+    public ResponseEntity<org.springframework.core.io.Resource> downloadSong(@PathVariable("songId") String id) {
+        return songService.downloadSong(id);
+    }
+    @GetMapping("/downloaded")
+    public ApiResponse<List<SongResponse>> getDownloadedSongs() {
+        return ApiResponse.<List<SongResponse>>builder()
+                .result(songService.getDownloadedSongs())
+                .build();
+    }
+    @GetMapping("/{songId}/check-downloaded")
+    public ApiResponse<Boolean> checkDownloaded(@PathVariable("songId") String id) {
+        return ApiResponse.<Boolean>builder()
+                .result(songService.isSongDownloadedByCurrentUser(id))
                 .build();
     }
 }

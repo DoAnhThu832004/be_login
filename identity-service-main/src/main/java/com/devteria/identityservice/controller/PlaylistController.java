@@ -5,7 +5,9 @@ import com.devteria.identityservice.dto.request.ApiResponse;
 import com.devteria.identityservice.dto.request.PlaylistCreationRequest;
 import com.devteria.identityservice.dto.request.PlaylistUpdateRequest;
 import com.devteria.identityservice.dto.response.ArtistResponse;
+import com.devteria.identityservice.dto.response.PageResponse;
 import com.devteria.identityservice.dto.response.PlaylistResponse;
+import com.devteria.identityservice.dto.response.SongResponse;
 import com.devteria.identityservice.entity.Artist;
 import com.devteria.identityservice.entity.Playlist;
 import com.devteria.identityservice.exception.AppException;
@@ -61,6 +63,32 @@ public class PlaylistController {
         playlistService.deletePlaylist(id);
         return ApiResponse.<String>builder()
                 .result("Playlist updated successfully")
+                .build();
+    }
+    @PostMapping("/{playlistId}/songs/{songId}")
+    public ApiResponse<PlaylistResponse> addSongToPlaylist(
+            @PathVariable String playlistId,
+            @PathVariable String songId) {
+        return ApiResponse.<PlaylistResponse>builder()
+                .result(playlistService.addSongToPlaylist(playlistId, songId))
+                .build();
+    }
+
+    @DeleteMapping("/{playlistId}/songs/{songId}")
+    public ApiResponse<PlaylistResponse> removeSongFromPlaylist(
+            @PathVariable String playlistId,
+            @PathVariable String songId) {
+        return ApiResponse.<PlaylistResponse>builder()
+                .result(playlistService.removeSongFromPlaylist(playlistId, songId))
+                .build();
+    }
+    @GetMapping("/{playlistId}/songs")
+    public ApiResponse<PageResponse<SongResponse>> getSongs(
+            @PathVariable String playlistId,
+            @RequestParam(value = "page", defaultValue = "1") int page,
+            @RequestParam(value = "size", defaultValue = "10") int size) {
+        return ApiResponse.<PageResponse<SongResponse>>builder()
+                .result(playlistService.getSongsInPlaylist(playlistId, page, size))
                 .build();
     }
     @PostMapping("/{playlistId}/upload")

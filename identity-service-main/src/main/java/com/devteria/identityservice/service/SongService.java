@@ -6,20 +6,22 @@ import com.devteria.identityservice.dto.request.SongCreationRequest;
 import com.devteria.identityservice.dto.request.SongUpdateRequest;
 import com.devteria.identityservice.dto.response.PageResponse;
 import com.devteria.identityservice.dto.response.SongResponse;
-import com.devteria.identityservice.entity.Artist;
-import com.devteria.identityservice.entity.Song;
-import com.devteria.identityservice.entity.User;
-import com.devteria.identityservice.entity.Year;
+import com.devteria.identityservice.entity.*;
 import com.devteria.identityservice.enums.SongType;
 import com.devteria.identityservice.enums.Status;
 import com.devteria.identityservice.exception.AppException;
 import com.devteria.identityservice.exception.ErrorCode;
+import com.devteria.identityservice.repository.DownloadedSongRepository;
 import com.devteria.identityservice.repository.FavoriteRepository;
 import com.devteria.identityservice.repository.SongRepository;
 import com.devteria.identityservice.repository.UserRepository;
 import org.hibernate.mapping.Collection;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
@@ -28,11 +30,16 @@ import org.springframework.web.multipart.MultipartFile;
 
 import org.springframework.data.domain.Pageable;
 import java.io.IOException;
+import java.net.MalformedURLException;
+import java.nio.charset.StandardCharsets;
+import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+import org.springframework.core.io.Resource;
+import org.springframework.core.io.UrlResource;
 
 @Service
 public class SongService {
@@ -41,14 +48,17 @@ public class SongService {
     private final Cloudinary cloudinary;
     private final FavoriteRepository favoriteRepository;
     private final UserRepository userRepository;
+    private final DownloadedSongRepository downloadedSongRepository;
 
-    public SongService(SongRepository songRepository, YearService yearService, Cloudinary cloudinary,FavoriteRepository favoriteRepository,UserRepository userRepository) {
+    public SongService(SongRepository songRepository, YearService yearService, Cloudinary cloudinary, FavoriteRepository favoriteRepository, UserRepository userRepository, DownloadedSongRepository downloadedSongRepository) {
         this.songRepository = songRepository;
         this.yearService = yearService;
         this.cloudinary = cloudinary;
         this.favoriteRepository = favoriteRepository;
         this.userRepository = userRepository;
+        this.downloadedSongRepository = downloadedSongRepository;
     }
+
     @Transactional
     public SongResponse createSong(SongCreationRequest request) {
         Song song = new Song();
@@ -199,6 +209,65 @@ public class SongService {
                 .map(song -> {
                     SongResponse response = toSongResponse(song);
                     response.setFavorite(likedSongIds.contains(song.getId()));
+                    return response;
+                })
+                .collect(Collectors.toList());
+    }
+    // Tiêm DownloadedSongRepository vào Constructor
+    public boolean isSongDownloadedByCurrentUser(String songId) {
+        User user = getCurrentUser();
+        if (user == null) return false;
+
+        Song song = songRepository.findById(songId).orElse(null);
+        if (song == null) return false;
+
+        return downloadedSongRepository.existsByUserAndSong(user, song);
+    }
+    // Cập nhật hàm downloadSong cũ
+    @Transactional
+    public ResponseEntity<Resource> downloadSong(String id) {
+        Song song = songRepository.findById(id)
+                .orElseThrow(() -> new AppException(ErrorCode.SONG_NOT_EXISTED));
+
+        User currentUser = getCurrentUser();
+        if (currentUser != null) {
+            // KIỂM TRA: Nếu chưa tải thì mới lưu vào DB
+            if (!downloadedSongRepository.existsByUserAndSong(currentUser, song)) {
+                DownloadedSong download = new DownloadedSong();
+                download.setUser(currentUser);
+                download.setSong(song);
+                download.setDownloadedAt(LocalDateTime.now());
+                downloadedSongRepository.save(download);
+            }
+            // Nếu đã tải rồi thì bỏ qua bước save, chỉ tiến hành trả về file nhạc bên dưới
+        }
+
+        try {
+            Resource resource = new UrlResource(song.getAudioUrl());
+            ContentDisposition contentDisposition = ContentDisposition.attachment()
+                    .filename(song.getName() + ".mp3", StandardCharsets.UTF_8)
+                    .build();
+
+            return ResponseEntity.ok()
+                    .header(HttpHeaders.CONTENT_DISPOSITION, contentDisposition.toString())
+                    .contentType(MediaType.parseMediaType("audio/mpeg"))
+                    .body(resource);
+        } catch (MalformedURLException e) {
+            throw new AppException(ErrorCode.UNCATEGORIZED_EXCEPTION);
+        }
+    }
+
+    // Hàm lấy danh sách bài hát đã tải
+    public List<SongResponse> getDownloadedSongs() {
+        User user = getCurrentUser();
+        if (user == null) return Collections.emptyList();
+
+        List<DownloadedSong> downloads = downloadedSongRepository.findAllByUserOrderByDownloadedAtDesc(user);
+
+        return downloads.stream()
+                .map(download -> {
+                    SongResponse response = toSongResponse(download.getSong());
+                    response.setFavorite(isSongLikedByCurrentUser(download.getSong()));
                     return response;
                 })
                 .collect(Collectors.toList());
