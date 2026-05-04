@@ -170,6 +170,7 @@ public class SongService {
         Song updateSong = songRepository.save(song);
         return toSongResponse(updateSong);
     }
+    @Transactional
     public Song uploadSongFile(String songId, MultipartFile image,MultipartFile audio) throws IOException {
         Song song = songRepository.findById(songId)
                 .orElseThrow(() -> new AppException(ErrorCode.SONG_NOT_EXISTED));

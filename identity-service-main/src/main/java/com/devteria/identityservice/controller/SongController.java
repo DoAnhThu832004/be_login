@@ -103,7 +103,6 @@ public class SongController {
                 .build();
     }
 
-    // Endpoint truy xuất bảng xếp hạng
     @GetMapping("/top-charts")
     public ApiResponse<List<SongResponse>> getTopSongs() {
         return ApiResponse.<List<SongResponse>>builder()

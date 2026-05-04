@@ -5,6 +5,7 @@ import java.util.List;
 
 import jakarta.validation.Valid;
 
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import com.devteria.identityservice.dto.request.ApiResponse;
@@ -26,7 +27,7 @@ import org.springframework.web.multipart.MultipartFile;
 @Slf4j
 public class UserController {
     UserService userService;
-
+    @Transactional
     @PostMapping
     ApiResponse<UserResponse> createUser(@RequestBody @Valid UserCreationRequest request) {
         return ApiResponse.<UserResponse>builder()
@@ -60,7 +61,7 @@ public class UserController {
         userService.deleteUser(userId);
         return ApiResponse.<String>builder().result("User has been deleted").build();
     }
-
+    @Transactional
     @PutMapping("/{userId}")
     ApiResponse<UserResponse> updateUser(@PathVariable String userId, @RequestBody UserUpdateRequest request) {
         return ApiResponse.<UserResponse>builder()
@@ -68,6 +69,7 @@ public class UserController {
                 .message("this is update user")
                 .build();
     }
+    @Transactional
     @PostMapping(value = "/{userId}/upload")
     ApiResponse<UserResponse> uploadProfileImage(
             @PathVariable("userId") String userId,

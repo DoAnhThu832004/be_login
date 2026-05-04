@@ -19,6 +19,7 @@ import jakarta.validation.Valid;
 import org.springframework.data.domain.Page;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.data.domain.Pageable;
@@ -42,6 +43,7 @@ public class PlaylistService {
         this.cloudinary = cloudinary;
         this.userRepository = userRepository;
     }
+    @Transactional
     public PlaylistResponse createPlaylist(PlaylistCreationRequest request) {
         Playlist playlist = toPlaylist(request);
         String name = SecurityContextHolder.getContext().getAuthentication().getName();
@@ -69,12 +71,14 @@ public class PlaylistService {
                 .orElseThrow(() -> new AppException(ErrorCode.PLAYLIST_NOT_EXISTED));
         return toPlaylistResponse(playlist);
     }
+    @Transactional
     public PlaylistResponse updatePlaylist(String id, PlaylistUpdateRequest request) {
         Playlist playlist = playlistRepository.findById(id)
                 .orElseThrow(()-> new AppException(ErrorCode.PLAYLIST_NOT_EXISTED));
         mapRequestToPlaylist(playlist,request);
         return toPlaylistResponse(playlistRepository.save(playlist));
     }
+    @Transactional
     public void deletePlaylist(String id) {
         playlistRepository.deleteById(id);
     }
@@ -97,6 +101,7 @@ public class PlaylistService {
 
         return playlistRepository.save(playlist);
     }
+    @Transactional
     public PlaylistResponse addSongToPlaylist(String playlistId, String songId) {
         Playlist playlist = playlistRepository.findById(playlistId)
                 .orElseThrow(() -> new AppException(ErrorCode.PLAYLIST_NOT_EXISTED));
@@ -107,6 +112,7 @@ public class PlaylistService {
         playlist.getSongPlayList().add(song);
         return toPlaylistResponse(playlistRepository.save(playlist));
     }
+    @Transactional
     public PlaylistResponse removeSongFromPlaylist(String playlistId, String songId) {
         Playlist playlist = playlistRepository.findById(playlistId)
                 .orElseThrow(() -> new AppException(ErrorCode.PLAYLIST_NOT_EXISTED));
