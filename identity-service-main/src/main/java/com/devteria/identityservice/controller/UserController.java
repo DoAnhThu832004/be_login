@@ -3,6 +3,7 @@ package com.devteria.identityservice.controller;
 import java.io.IOException;
 import java.util.List;
 
+import com.devteria.identityservice.dto.response.PageResponse;
 import jakarta.validation.Valid;
 
 import org.springframework.transaction.annotation.Transactional;
@@ -36,9 +37,12 @@ public class UserController {
     }
 
     @GetMapping
-    ApiResponse<List<UserResponse>> getUsers() {
-        return ApiResponse.<List<UserResponse>>builder()
-                .result(userService.getUsers())
+    ApiResponse<PageResponse<UserResponse>> getUsers(
+            @RequestParam(value = "page", required = false, defaultValue = "1") int page,
+            @RequestParam(value = "size", required = false, defaultValue = "10") int size
+    ) {
+        return ApiResponse.<PageResponse<UserResponse>>builder()
+                .result(userService.getUsers(page, size))
                 .build();
     }
 

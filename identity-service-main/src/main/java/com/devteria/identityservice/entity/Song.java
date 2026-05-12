@@ -9,7 +9,7 @@ import java.time.LocalDateTime;
 import java.util.Set;
 
 @Entity
-public class Song {
+public class Song extends AbstractAuditEntity{
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     private String id;

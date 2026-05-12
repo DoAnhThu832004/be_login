@@ -4,9 +4,12 @@ import java.io.IOException;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import com.cloudinary.Cloudinary;
 import com.cloudinary.utils.ObjectUtils;
+import com.devteria.identityservice.dto.response.PageResponse;
+import com.devteria.identityservice.dto.response.RoleResponse;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.access.prepost.PostAuthorize;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -25,6 +28,10 @@ import com.devteria.identityservice.exception.ErrorCode;
 import com.devteria.identityservice.mapper.UserMapper;
 import com.devteria.identityservice.repository.RoleRepository;
 import com.devteria.identityservice.repository.UserRepository;
+
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
@@ -91,10 +98,46 @@ public class UserService {
     }
 
     @PreAuthorize("hasRole('ADMIN')")
-    public List<UserResponse> getUsers() {
-        log.info("In method get Users");
-        return userRepository.findAll().stream().map(userMapper::toUserResponse).toList();
+    public PageResponse<UserResponse> getUsers(int page, int size) {
+        Pageable pageable = PageRequest.of(page - 1, size);
+        Page<User> pageUser = userRepository.findAll(pageable);
+
+        // MAPPING THỦ CÔNG TỪ ENTITY SANG DTO
+        List<UserResponse> userResponses = pageUser.getContent().stream()
+                .map(user -> {
+                    UserResponse res = new UserResponse();
+                    res.setId(user.getId());
+                    res.setUsername(user.getUsername());
+                    res.setFirstName(user.getFirstName()); // Map tay từng trường
+                    res.setLastName(user.getLastName());
+                    res.setDob(user.getDob());
+                    res.setImageUrl(user.getImageUrl());
+
+                    // Nếu roles là một Set<Role>, bạn cũng phải map nó qua RoleResponse
+                    if (user.getRoles() != null) {
+                        res.setRoles(user.getRoles().stream()
+                                .map(role -> {
+                                    RoleResponse roleRes = new RoleResponse();
+                                    roleRes.setName(role.getName());
+                                    roleRes.setDescription(role.getDescription());
+                                    return roleRes;
+                                })
+                                .collect(Collectors.toSet()));
+                    }
+
+                    return res;
+                })
+                .toList();
+
+        return new PageResponse<>(
+                page,
+                pageUser.getTotalPages(),
+                pageUser.getSize(),
+                pageUser.getTotalElements(),
+                userResponses
+        );
     }
+
 
     @PreAuthorize("hasRole('ADMIN')")
     public UserResponse getUser(String id) {

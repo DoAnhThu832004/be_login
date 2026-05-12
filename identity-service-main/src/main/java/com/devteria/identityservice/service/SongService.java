@@ -11,6 +11,7 @@ import com.devteria.identityservice.enums.SongType;
 import com.devteria.identityservice.enums.Status;
 import com.devteria.identityservice.exception.AppException;
 import com.devteria.identityservice.exception.ErrorCode;
+import com.devteria.identityservice.mapper.PagingMapper;
 import com.devteria.identityservice.repository.DownloadedSongRepository;
 import com.devteria.identityservice.repository.FavoriteRepository;
 import com.devteria.identityservice.repository.SongRepository;
@@ -73,22 +74,21 @@ public class SongService {
         song = songRepository.save(song);
         return toSongResponse(song);
     }
-    public List<SongResponse> getSongs() {
-        // 1. Lấy toàn bộ bài hát (1 truy vấn DB)
-        List<Song> songs = songRepository.findAll();
+    public PageResponse<SongResponse> getSongs(int page, int size) {
+        Pageable pageable = PageRequest.of(page - 1, size);
+        Page<Song> songPage = songRepository.findAll(pageable);
 
-        // 2. Lấy danh sách ID các bài hát user đã thích (1 truy vấn DB)
         Set<String> likedSongIds = getLikedSongIdsOfCurrentUser();
 
-        // 3. Map dữ liệu trong bộ nhớ (Memory) - Không gọi DB nữa
-        return songs.stream()
+        List<SongResponse> songResponses = songPage.getContent().stream()
                 .map(song -> {
                     SongResponse response = toSongResponse(song);
-                    // Tra cứu trong Set cực nhanh (O(1))
                     response.setFavorite(likedSongIds.contains(song.getId()));
                     return response;
                 })
                 .collect(Collectors.toList());
+
+        return PagingMapper.toPageResponse(songPage, songResponses);
     }
     public SongResponse getSong(String id) {
         Song song = songRepository.findById(id)

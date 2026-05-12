@@ -12,6 +12,12 @@ import com.devteria.identityservice.repository.CommentRepository;
 import com.devteria.identityservice.repository.SongRepository;
 import com.devteria.identityservice.repository.UserRepository;
 import org.springframework.security.core.context.SecurityContextHolder;
+import com.devteria.identityservice.dto.response.PageResponse;
+import com.devteria.identityservice.mapper.PagingMapper;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -56,13 +62,16 @@ public class CommentService {
 
         return toCommentResponse(commentRepository.save(comment));
     }
-    public List<CommentResponse> getCommentsBySong(String songId) {
-        var comments = commentRepository.findAllBySongId(songId);
+    public PageResponse<CommentResponse> getCommentsBySong(String songId, int page, int size) {
+        Pageable pageable = PageRequest.of(page - 1, size, Sort.by("createdAt").descending());
+        Page<Comment> commentPage = commentRepository.findAllBySongId(songId, pageable);
 
-        return comments.stream()
+        List<CommentResponse> commentResponses = commentPage.getContent().stream()
                 .filter(comment -> comment.getParent() == null)
                 .map(CommentService::toCommentResponse)
                 .toList();
+
+        return PagingMapper.toPageResponse(commentPage, commentResponses);
     }
     @Transactional
     public CommentResponse updateComment(String id, CommentUpdateRequest request) {
@@ -113,7 +122,7 @@ public class CommentService {
         response.setId(comment.getId());
         response.setText(comment.getText());
         response.setEdited(comment.isEdited());
-        response.setCreateAt(comment.getCreateAt());
+        //response.setCreateAt(comment.getCreateAt());
 
         if (comment.getUser() != null) {
             response.setUsername(comment.getUser().getUsername());

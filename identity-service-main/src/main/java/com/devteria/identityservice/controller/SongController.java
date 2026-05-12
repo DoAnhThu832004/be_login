@@ -34,9 +34,12 @@ public class SongController {
                 .build();
     }
     @GetMapping
-    public ApiResponse<List<SongResponse>> getSongs() {
-        return ApiResponse.<List<SongResponse>>builder()
-                .result(songService.getSongs())
+    public ApiResponse<PageResponse<SongResponse>> getSongs(
+            @RequestParam(value = "page", required = false, defaultValue = "1") int page,
+            @RequestParam(value = "size", required = false, defaultValue = "10") int size
+    ) {
+        return ApiResponse.<PageResponse<SongResponse>>builder()
+                .result(songService.getSongs(page, size))
                 .build();
     }
     @GetMapping("/{songId}")
