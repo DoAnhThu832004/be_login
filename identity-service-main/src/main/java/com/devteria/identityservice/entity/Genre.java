@@ -11,7 +11,7 @@ public class Genre extends AbstractAuditEntity {
     private String id;
     private String keyG;
     private String name;
-    @OneToMany(mappedBy = "genre")
+    @ManyToMany(mappedBy = "genres")
     private Set<Song> songs;
     @ManyToMany(mappedBy = "artistGenre")
     private Set<Artist> artists;

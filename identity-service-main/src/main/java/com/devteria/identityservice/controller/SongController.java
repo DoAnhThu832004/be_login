@@ -35,9 +35,15 @@ public class SongController {
     }
     @GetMapping
     public ApiResponse<PageResponse<SongResponse>> getSongs(
+            @RequestParam(value = "genreId", required = false) String genreId,
             @RequestParam(value = "page", required = false, defaultValue = "1") int page,
             @RequestParam(value = "size", required = false, defaultValue = "10") int size
     ) {
+        if (genreId != null && !genreId.isEmpty()) {
+            return ApiResponse.<PageResponse<SongResponse>>builder()
+                    .result(songService.getSongsByGenre(genreId, page, size))
+                    .build();
+        }
         return ApiResponse.<PageResponse<SongResponse>>builder()
                 .result(songService.getSongs(page, size))
                 .build();

@@ -14,6 +14,7 @@ import com.devteria.identityservice.exception.ErrorCode;
 import com.devteria.identityservice.mapper.PagingMapper;
 import com.devteria.identityservice.repository.DownloadedSongRepository;
 import com.devteria.identityservice.repository.FavoriteRepository;
+import com.devteria.identityservice.repository.GenreRepository;
 import com.devteria.identityservice.repository.SongRepository;
 import com.devteria.identityservice.repository.UserRepository;
 import org.hibernate.mapping.Collection;
@@ -50,14 +51,16 @@ public class SongService {
     private final FavoriteRepository favoriteRepository;
     private final UserRepository userRepository;
     private final DownloadedSongRepository downloadedSongRepository;
+    private final GenreRepository genreRepository;
 
-    public SongService(SongRepository songRepository, YearService yearService, Cloudinary cloudinary, FavoriteRepository favoriteRepository, UserRepository userRepository, DownloadedSongRepository downloadedSongRepository) {
+    public SongService(SongRepository songRepository, YearService yearService, Cloudinary cloudinary, FavoriteRepository favoriteRepository, UserRepository userRepository, DownloadedSongRepository downloadedSongRepository, GenreRepository genreRepository) {
         this.songRepository = songRepository;
         this.yearService = yearService;
         this.cloudinary = cloudinary;
         this.favoriteRepository = favoriteRepository;
         this.userRepository = userRepository;
         this.downloadedSongRepository = downloadedSongRepository;
+        this.genreRepository = genreRepository;
     }
 
     @Transactional
@@ -71,12 +74,32 @@ public class SongService {
         song.setType(SongType.AUDIO);
         Year year = yearService.createYear(request.getReleasedDate().getYear());
         song.setYear(year);
+        if (request.getGenreIds() != null) {
+            List<Genre> genres = genreRepository.findAllById(request.getGenreIds());
+            song.setGenres(new java.util.HashSet<>(genres));
+        }
         song = songRepository.save(song);
         return toSongResponse(song);
     }
     public PageResponse<SongResponse> getSongs(int page, int size) {
         Pageable pageable = PageRequest.of(page - 1, size);
         Page<Song> songPage = songRepository.findAll(pageable);
+
+        Set<String> likedSongIds = getLikedSongIdsOfCurrentUser();
+
+        List<SongResponse> songResponses = songPage.getContent().stream()
+                .map(song -> {
+                    SongResponse response = toSongResponse(song);
+                    response.setFavorite(likedSongIds.contains(song.getId()));
+                    return response;
+                })
+                .collect(Collectors.toList());
+
+        return PagingMapper.toPageResponse(songPage, songResponses);
+    }
+    public PageResponse<SongResponse> getSongsByGenre(String genreId, int page, int size) {
+        Pageable pageable = PageRequest.of(page - 1, size);
+        Page<Song> songPage = songRepository.findByGenres_Id(genreId, pageable);
 
         Set<String> likedSongIds = getLikedSongIdsOfCurrentUser();
 
@@ -166,6 +189,10 @@ public class SongService {
             song.setReleasedDate(request.getReleasedDate());
             Year year = yearService.createYear(request.getReleasedDate().getYear());
             song.setYear(year);
+        }
+        if (request.getGenreIds() != null) {
+            List<Genre> genres = genreRepository.findAllById(request.getGenreIds());
+            song.setGenres(new java.util.HashSet<>(genres));
         }
         Song updateSong = songRepository.save(song);
         return toSongResponse(updateSong);
@@ -297,6 +324,11 @@ public class SongService {
 
             // Cách 2 (Truyền thống - Dùng Iterator):
             // response.setArtistName(song.getArtists().iterator().next().getName());
+        }
+        if (song.getGenres() != null && !song.getGenres().isEmpty()) {
+            response.setGenres(song.getGenres().stream()
+                    .map(GenreService::toGenreResponse)
+                    .collect(Collectors.toList()));
         }
         return response;
     }

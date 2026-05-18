@@ -26,9 +26,13 @@ public class Song extends AbstractAuditEntity{
     @ManyToOne
     @JoinColumn(name = "year_id")
     private Year year;
-    @ManyToOne
-    @JoinColumn(name = "genre_id")
-    private Genre genre;
+    @ManyToMany
+    @JoinTable(
+        name = "song_genre",
+        joinColumns = @JoinColumn(name = "song_id"),
+        inverseJoinColumns = @JoinColumn(name = "genre_id")
+    )
+    private Set<Genre> genres;
 
     @ManyToMany(mappedBy = "songPlayList")
     private Set<Playlist> playlists;
@@ -135,12 +139,12 @@ public class Song extends AbstractAuditEntity{
         this.year = year;
     }
 
-    public Genre getGenre() {
-        return genre;
+    public Set<Genre> getGenres() {
+        return genres;
     }
 
-    public void setGenre(Genre genre) {
-        this.genre = genre;
+    public void setGenres(Set<Genre> genres) {
+        this.genres = genres;
     }
 
     public Set<Playlist> getPlaylists() {

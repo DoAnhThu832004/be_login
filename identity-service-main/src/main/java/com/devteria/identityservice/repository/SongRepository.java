@@ -15,4 +15,6 @@ public interface SongRepository extends JpaRepository<Song,String> {
     Page<Song> findByNameContainingIgnoreCase(String keyword, Pageable pageable);
     List<Song> findTop10ByOrderByPlayCountDesc();
     Page<Song> findByPlaylists_Id(String playlistId, Pageable pageable);
+    Page<Song> findByGenres_Id(String genreId, Pageable pageable);
+    List<Song> findTop10ByGenres_IdOrderByPlayCountDesc(String genreId);
 }
