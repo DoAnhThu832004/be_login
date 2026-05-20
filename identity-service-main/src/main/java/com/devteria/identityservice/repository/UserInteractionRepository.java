@@ -12,6 +12,9 @@ import org.springframework.stereotype.Repository;
 import java.util.List;
 import java.util.Optional;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+
 @Repository
 public interface UserInteractionRepository extends JpaRepository<UserInteraction, String> {
 
@@ -22,6 +25,10 @@ public interface UserInteractionRepository extends JpaRepository<UserInteraction
      * Cấu trúc trả về Optional giúp ngăn chặn triệt để lỗi tham chiếu rỗng trong quá trình xử lý logic.
      */
     Optional<UserInteraction> findByUserAndSong(User user, Song song);
+
+    Optional<UserInteraction> findByUserAndSongAndInteractionType(User user, Song song, String interactionType);
+
+    Page<UserInteraction> findByUserAndInteractionTypeOrderByUpdatedAtDesc(User user, String interactionType, Pageable pageable);
 
     /**
      * Truy xuất toàn bộ danh sách các tương tác đã được ghi nhận của một người dùng.
@@ -60,4 +67,8 @@ public interface UserInteractionRepository extends JpaRepository<UserInteraction
     @Modifying
     @Query("DELETE FROM UserInteraction ui WHERE ui.user = :user")
     void deleteAllByUser(@Param("user") User user);
+
+    @Modifying
+    @Query("DELETE FROM UserInteraction ui WHERE ui.interactionType = :type OR ui.interactionType IS NULL")
+    void deleteByInteractionTypeOrNull(@Param("type") String type);
 }

@@ -52,8 +52,9 @@ public class SongService {
     private final UserRepository userRepository;
     private final DownloadedSongRepository downloadedSongRepository;
     private final GenreRepository genreRepository;
+    private final com.devteria.identityservice.repository.UserInteractionRepository userInteractionRepository;
 
-    public SongService(SongRepository songRepository, YearService yearService, Cloudinary cloudinary, FavoriteRepository favoriteRepository, UserRepository userRepository, DownloadedSongRepository downloadedSongRepository, GenreRepository genreRepository) {
+    public SongService(SongRepository songRepository, YearService yearService, Cloudinary cloudinary, FavoriteRepository favoriteRepository, UserRepository userRepository, DownloadedSongRepository downloadedSongRepository, GenreRepository genreRepository, com.devteria.identityservice.repository.UserInteractionRepository userInteractionRepository) {
         this.songRepository = songRepository;
         this.yearService = yearService;
         this.cloudinary = cloudinary;
@@ -61,6 +62,7 @@ public class SongService {
         this.userRepository = userRepository;
         this.downloadedSongRepository = downloadedSongRepository;
         this.genreRepository = genreRepository;
+        this.userInteractionRepository = userInteractionRepository;
     }
 
     @Transactional
@@ -296,6 +298,25 @@ public class SongService {
                 .map(download -> {
                     SongResponse response = toSongResponse(download.getSong());
                     response.setFavorite(isSongLikedByCurrentUser(download.getSong()));
+                    return response;
+                })
+                .collect(Collectors.toList());
+    }
+
+    public List<SongResponse> getRecentlyPlayedSongs() {
+        User user = getCurrentUser();
+        if (user == null) return Collections.emptyList();
+
+        Pageable limit = PageRequest.of(0, 20);
+        Page<com.devteria.identityservice.entity.UserInteraction> interactions = 
+            userInteractionRepository.findByUserAndInteractionTypeOrderByUpdatedAtDesc(user, "LISTEN", limit);
+
+        Set<String> likedSongIds = getLikedSongIdsOfCurrentUser();
+
+        return interactions.getContent().stream()
+                .map(interaction -> {
+                    SongResponse response = toSongResponse(interaction.getSong());
+                    response.setFavorite(likedSongIds.contains(interaction.getSong().getId()));
                     return response;
                 })
                 .collect(Collectors.toList());

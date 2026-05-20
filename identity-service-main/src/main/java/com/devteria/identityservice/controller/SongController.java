@@ -135,4 +135,10 @@ public class SongController {
                 .result(songService.isSongDownloadedByCurrentUser(id))
                 .build();
     }
+    @GetMapping("/recently-played")
+    public ApiResponse<List<SongResponse>> getRecentlyPlayedSongs() {
+        return ApiResponse.<List<SongResponse>>builder()
+                .result(songService.getRecentlyPlayedSongs())
+                .build();
+    }
 }

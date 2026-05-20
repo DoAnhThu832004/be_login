@@ -31,7 +31,7 @@ public class InteractionAggregationService {
     @Scheduled(cron = "0 0 2 * * ?")
     public void calculateAndStoreInteractions() {
         log.info("Khởi động tiến trình đồng bộ hóa ma trận tương tác...");
-        userInteractionRepository.deleteAll();
+        userInteractionRepository.deleteByInteractionTypeOrNull("LIKE");
         List<Favorite> allFavorites = favoriteRepository.findAll();
 
         if (allFavorites.isEmpty()) {
@@ -43,6 +43,8 @@ public class InteractionAggregationService {
             interaction.setUser(favorite.getUser());
             interaction.setSong(favorite.getSong());
             interaction.setRatingScore(5.0f);
+            interaction.setInteractionType("LIKE");
+            interaction.setUpdatedAt(java.time.LocalDateTime.now());
 
             userInteractionRepository.save(interaction);
         }
