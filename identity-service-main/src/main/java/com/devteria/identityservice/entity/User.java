@@ -4,6 +4,7 @@ import java.time.LocalDate;
 import java.util.Set;
 
 import jakarta.persistence.*;
+import com.devteria.identityservice.entity.Genre;
 
 import lombok.*;
 import lombok.experimental.FieldDefaults;
@@ -33,4 +34,16 @@ public class User extends AbstractAuditEntity {
 
     @ManyToMany
     Set<Role> roles;
+
+    /**
+     * Thể loại nhạc yêu thích của user — được chọn lần đầu khi đăng ký.
+     * Dùng cho luồng Cold Start trong hệ thống gợi ý nhạc cá nhân hóa.
+     */
+    @ManyToMany
+    @JoinTable(
+            name = "user_preferred_genres",
+            joinColumns = @JoinColumn(name = "user_id"),
+            inverseJoinColumns = @JoinColumn(name = "genre_id")
+    )
+    Set<Genre> preferredGenres;
 }

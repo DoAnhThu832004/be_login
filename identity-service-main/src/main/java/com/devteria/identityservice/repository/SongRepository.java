@@ -17,4 +17,11 @@ public interface SongRepository extends JpaRepository<Song,String> {
     Page<Song> findByPlaylists_Id(String playlistId, Pageable pageable);
     Page<Song> findByGenres_Id(String genreId, Pageable pageable);
     List<Song> findTop10ByGenres_IdOrderByPlayCountDesc(String genreId);
+
+    /**
+     * Tải nhiều bài hát theo danh sách ID trong một query duy nhất.
+     * Dùng trong bước Response của luồng Online để hydrate song metadata.
+     */
+    List<Song> findByIdIn(List<String> ids);
 }
+

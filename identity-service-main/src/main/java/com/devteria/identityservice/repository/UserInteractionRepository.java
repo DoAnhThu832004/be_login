@@ -52,6 +52,28 @@ public interface UserInteractionRepository extends JpaRepository<UserInteraction
     boolean existsByUserAndSong(User user, Song song);
 
     /**
+     * Kiểm tra user có bất kỳ lịch sử tương tác nào không.
+     * Dùng trong bước Cold Start Check của luồng Online.
+     */
+    @Query("SELECT COUNT(ui) > 0 FROM UserInteraction ui WHERE ui.user.id = :userId")
+    boolean existsByUserId(@Param("userId") String userId);
+
+    /**
+     * Lấy tất cả tương tác của một user theo userId (dùng String ID).
+     * Phục vụ cho bước lấy User Profile trong luồng Online.
+     */
+    @Query("SELECT ui FROM UserInteraction ui WHERE ui.user.id = :userId")
+    List<UserInteraction> findAllByUserId(@Param("userId") String userId);
+
+    /**
+     * Lấy toàn bộ dữ liệu tương tác dưới dạng mảng [userId, songId, ratingScore, interactionType].
+     * Dùng trong bước Aggregation của luồng Offline để xây dựng ma trận điểm.
+     */
+    @Query("SELECT ui.user.id, ui.song.id, ui.ratingScore, ui.interactionType " +
+            "FROM UserInteraction ui WHERE ui.ratingScore IS NOT NULL")
+    List<Object[]> findAllRawInteractionData();
+
+    /**
      * Cập nhật điểm số tương tác một cách trực tiếp thông qua câu lệnh thao tác dữ liệu tùy chỉnh.
      * Cấu trúc này vượt qua cơ chế theo dõi trạng thái của Hibernate để tối ưu hóa
      * hiệu suất khi cần xử lý cập nhật hàng loạt dữ liệu trong các tác vụ nền.

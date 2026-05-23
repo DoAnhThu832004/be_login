@@ -21,11 +21,13 @@ import com.devteria.identityservice.constant.PredefinedRole;
 import com.devteria.identityservice.dto.request.UserCreationRequest;
 import com.devteria.identityservice.dto.request.UserUpdateRequest;
 import com.devteria.identityservice.dto.response.UserResponse;
+import com.devteria.identityservice.entity.Genre;
 import com.devteria.identityservice.entity.Role;
 import com.devteria.identityservice.entity.User;
 import com.devteria.identityservice.exception.AppException;
 import com.devteria.identityservice.exception.ErrorCode;
 import com.devteria.identityservice.mapper.UserMapper;
+import com.devteria.identityservice.repository.GenreRepository;
 import com.devteria.identityservice.repository.RoleRepository;
 import com.devteria.identityservice.repository.UserRepository;
 
@@ -47,6 +49,7 @@ import org.springframework.web.multipart.MultipartFile;
 public class UserService {
     UserRepository userRepository;
     RoleRepository roleRepository;
+    GenreRepository genreRepository;
     UserMapper userMapper;
     PasswordEncoder passwordEncoder;
     Cloudinary cloudinary;
@@ -58,8 +61,15 @@ public class UserService {
 
         HashSet<Role> roles = new HashSet<>();
         roleRepository.findById(PredefinedRole.USER_ROLE).ifPresent(roles::add);
-
         user.setRoles(roles);
+
+        // Xử lý preferred genres — load Genre entities từ DB theo danh sách ID được cung cấp
+        if (request.getPreferredGenreIds() != null && !request.getPreferredGenreIds().isEmpty()) {
+            var genres = genreRepository.findAllById(request.getPreferredGenreIds());
+            user.setPreferredGenres(new HashSet<>(genres));
+            log.info("User {} đã chọn {} thể loại nhạc yêu thích khi đăng ký",
+                    request.getUsername(), genres.size());
+        }
 
         try {
             user = userRepository.save(user);
@@ -88,6 +98,12 @@ public class UserService {
 
         var roles = roleRepository.findAllById(request.getRoles());
         user.setRoles(new HashSet<>(roles));
+
+        // Cập nhật preferred genres nếu được cung cấp
+        if (request.getPreferredGenreIds() != null) {
+            var genres = genreRepository.findAllById(request.getPreferredGenreIds());
+            user.setPreferredGenres(new HashSet<>(genres));
+        }
 
         return userMapper.toUserResponse(userRepository.save(user));
     }
