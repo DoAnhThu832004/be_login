@@ -1,24 +1,36 @@
 package com.devteria.identityservice.service;
 
+import com.devteria.identityservice.dto.response.AlbumResponse;
+import com.devteria.identityservice.dto.response.ArtistResponse;
 import com.devteria.identityservice.dto.response.GenreResponse;
+import com.devteria.identityservice.dto.response.HomeRecommendationResponse;
+import com.devteria.identityservice.dto.response.PlaylistResponse;
 import com.devteria.identityservice.dto.response.RecommendationResponse;
 import com.devteria.identityservice.dto.response.SongResponse;
+import com.devteria.identityservice.entity.Album;
+import com.devteria.identityservice.entity.Artist;
+import com.devteria.identityservice.entity.Playlist;
 import com.devteria.identityservice.entity.Song;
 import com.devteria.identityservice.entity.SongSimilarity;
 import com.devteria.identityservice.entity.User;
 import com.devteria.identityservice.entity.UserInteraction;
+import com.devteria.identityservice.repository.AlbumRepository;
+import com.devteria.identityservice.repository.ArtistRepository;
+import com.devteria.identityservice.repository.PlaylistRepository;
 import com.devteria.identityservice.repository.SongRepository;
 import com.devteria.identityservice.repository.SongSimilarityRepository;
 import com.devteria.identityservice.repository.UserInteractionRepository;
 import com.devteria.identityservice.repository.UserRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -31,7 +43,7 @@ import java.util.stream.Collectors;
  * Mục tiêu: Trả về danh sách gợi ý trong < 50ms bằng cách đọc từ bảng
  * song_similarity đã được tính toán sẵn bởi luồng Offline.
  *
- * Pipeline:
+ * Pipeline Songs (đã có):
  * 2.1 Client gọi API GET /api/recommendations?userId=XYZ
  * 2.2 Cold Start Check: user chưa có lịch sử → trả về Trending
  * 2.3 Lấy User Profile: danh sách bài đã nghe + điểm tương tác
@@ -39,6 +51,13 @@ import java.util.stream.Collectors;
  * 2.5 Predicted Score: tính điểm dự đoán có trọng số
  * 2.6 MMR Re-ranking: cân bằng Relevance và Diversity
  * 2.7 Trả về Top K bài hát
+ *
+ * Pipeline Home — Aggregation (mới):
+ * H.1 Lấy top 50 bài hát gợi ý (tái dụng pipeline trên)
+ * H.2 Aggregate in-memory: gom nhóm Artist/Album/Playlist theo predictedScore
+ * H.3 Sort & Truncate: lấy Top 5 cho mỗi nhóm
+ * H.4 Hydration: query DB lấy đầy đủ thông tin
+ * H.5 Build HomeRecommendationResponse
  */
 @Service
 public class RecommendationEngineService {
@@ -57,20 +76,35 @@ public class RecommendationEngineService {
      */
     private static final int CANDIDATES_PER_SONG = 20;
 
+    /** Số bài hát rộng để làm đầu vào cho Aggregation. */
+    private static final int HOME_SONG_POOL = 50;
+
+    /** Số Artist/Album/Playlist tối đa trả về cho trang chủ. */
+    private static final int HOME_TOP_K = 5;
+
     private final UserRepository userRepository;
     private final UserInteractionRepository userInteractionRepository;
     private final SongSimilarityRepository songSimilarityRepository;
     private final SongRepository songRepository;
+    private final ArtistRepository artistRepository;
+    private final AlbumRepository albumRepository;
+    private final PlaylistRepository playlistRepository;
 
     public RecommendationEngineService(
             UserRepository userRepository,
             UserInteractionRepository userInteractionRepository,
             SongSimilarityRepository songSimilarityRepository,
-            SongRepository songRepository) {
+            SongRepository songRepository,
+            ArtistRepository artistRepository,
+            AlbumRepository albumRepository,
+            PlaylistRepository playlistRepository) {
         this.userRepository = userRepository;
         this.userInteractionRepository = userInteractionRepository;
         this.songSimilarityRepository = songSimilarityRepository;
         this.songRepository = songRepository;
+        this.artistRepository = artistRepository;
+        this.albumRepository = albumRepository;
+        this.playlistRepository = playlistRepository;
     }
 
     // =========================================================
@@ -78,7 +112,7 @@ public class RecommendationEngineService {
     // =========================================================
 
     /**
-     * Entry point chính của luồng Online.
+     * Entry point chính của luồng Online — chỉ trả về Bài hát.
      * Điều phối toàn bộ pipeline từ Cold Start đến MMR Re-ranking.
      *
      * @param userId ID của user cần gợi ý
@@ -96,6 +130,228 @@ public class RecommendationEngineService {
         }
 
         return getPersonalizedRecommendations(userId, limit);
+    }
+
+    // =========================================================
+    // ENTRY POINT HOME: API Trang Chủ — Songs + Artists + Albums + Playlists
+    // =========================================================
+
+    /**
+     * Entry point cho trang chủ.
+     * Tái dụng pipeline Songs (pool 50 bài), sau đó Aggregate in-memory
+     * để suy ra Top Artists, Albums, Playlists mà không cần thêm bảng DB.
+     *
+     * Complexity: O(N) trên RAM với N=50 (< 1ms)
+     * DB calls: 1 lần lấy songs + 1 lần hydrate entities
+     *
+     * @param userId ID của user
+     * @return HomeRecommendationResponse chứa songs, artists, albums, playlists
+     */
+    public HomeRecommendationResponse getHomeRecommendations(String userId) {
+        log.info("=== [HOME] Bắt đầu lấy gợi ý trang chủ cho user: {} ===", userId);
+
+        boolean hasHistory = userInteractionRepository.existsByUserId(userId);
+
+        if (!hasHistory) {
+            log.info("  [HOME][COLD START] User {} chưa có lịch sử.", userId);
+            return buildColdStartHome(userId);
+        }
+
+        return buildPersonalizedHome(userId);
+    }
+
+    /**
+     * H.1 → H.5: Trang chủ cá nhân hóa cho user đã có lịch sử.
+     * Dùng Aggregation Pipeline: Songs → Artists, Albums, Playlists.
+     */
+    private HomeRecommendationResponse buildPersonalizedHome(String userId) {
+        // ---- H.1: Lấy pool 50 bài hát (tái dụng pipeline có sẵn) ----
+        // Không dùng getPersonalizedRecommendations() vì cần Song entity để aggregate Playlist
+        List<UserInteraction> interactions = userInteractionRepository.findAllByUserId(userId);
+        Map<String, Double> userProfile = buildUserProfile(interactions);
+        Set<String> listenedSongs = userProfile.keySet();
+
+        Map<String, Double> candidateScores = generateCandidates(userProfile, listenedSongs);
+
+        List<Song> songPool;
+        String source;
+        if (candidateScores.isEmpty()) {
+            log.warn("  [HOME] Không có candidate. Fallback về Trending.");
+            songPool = songRepository.findTop10ByOrderByPlayCountDesc();
+            source = "COLD_START_GLOBAL";
+        } else {
+            List<String> topCandidateIds = candidateScores.entrySet().stream()
+                    .sorted(Map.Entry.<String, Double>comparingByValue().reversed())
+                    .limit((long) HOME_SONG_POOL * 3)
+                    .map(Map.Entry::getKey)
+                    .collect(Collectors.toList());
+            List<Song> candidateSongs = songRepository.findByIdIn(topCandidateIds);
+            Map<String, Song> songById = candidateSongs.stream()
+                    .collect(Collectors.toMap(Song::getId, s -> s));
+            songPool = mmrRerank(candidateScores, songById, HOME_SONG_POOL);
+            source = "PERSONALIZED";
+        }
+        log.info("  [HOME] Pool: {} bài hát (source: {})", songPool.size(), source);
+
+        // ---- H.2: Aggregate in-memory ----
+        // Tính điểm cho mỗi Artist/Album/Playlist từ pool bài hát
+        Map<String, Double> artistScores = new HashMap<>();
+        Map<String, Double> albumScores  = new HashMap<>();
+        Map<String, Double> playlistScores = new HashMap<>();
+
+        for (int i = 0; i < songPool.size(); i++) {
+            Song song = songPool.get(i);
+            // Dùng vị trí đảo ngược làm điểm: bài đầu tiên có điểm cao nhất
+            double score = candidateScores.getOrDefault(
+                    song.getId(),
+                    (double) (songPool.size() - i)  // fallback nếu từ trending
+            );
+
+            // Cộng điểm cho từng Artist của bài
+            if (song.getArtists() != null) {
+                for (Artist artist : song.getArtists()) {
+                    artistScores.merge(artist.getId(), score, Double::sum);
+                }
+            }
+
+            // Cộng điểm cho Album (nếu có)
+            if (song.getAlbum() != null) {
+                albumScores.merge(song.getAlbum().getId(), score, Double::sum);
+            }
+
+            // Cộng điểm cho từng Playlist chứa bài này
+            if (song.getPlaylists() != null) {
+                for (Playlist playlist : song.getPlaylists()) {
+                    playlistScores.merge(playlist.getId(), score, Double::sum);
+                }
+            }
+        }
+        log.info("  [HOME][AGG] {} artists, {} albums, {} playlists được tính điểm",
+                artistScores.size(), albumScores.size(), playlistScores.size());
+
+        // ---- H.3: Sort & Truncate ----
+        List<String> topArtistIds  = topKIds(artistScores,  HOME_TOP_K);
+        List<String> topAlbumIds   = topKIds(albumScores,   HOME_TOP_K);
+        List<String> topPlaylistIds = topKIds(playlistScores, HOME_TOP_K);
+
+        // ---- H.4: Hydration ----
+        List<Artist>   artists   = artistRepository.findAllByIdIn(topArtistIds);
+        List<Album>    albums    = albumRepository.findAllByIdIn(topAlbumIds);
+        List<Playlist> playlists;
+        if (!topPlaylistIds.isEmpty()) {
+            playlists = playlistRepository.findAllById(topPlaylistIds);
+        } else {
+            // Nếu không suy ra được playlist nào, fallback lấy playlist admin
+            playlists = playlistRepository.findAllAdminPlaylists().stream()
+                    .limit(HOME_TOP_K)
+                    .collect(Collectors.toList());
+        }
+
+        // Sắp xếp lại theo thứ tự điểm số (hydration không giữ thứ tự)
+        Map<String, Double> artistScoresFinal  = artistScores;
+        Map<String, Double> albumScoresFinal   = albumScores;
+        artists.sort(Comparator.comparingDouble(
+                a -> -artistScoresFinal.getOrDefault(a.getId(), 0.0)));
+        albums.sort(Comparator.comparingDouble(
+                a -> -albumScoresFinal.getOrDefault(a.getId(), 0.0)));
+
+        // ---- H.5: Build Response ----
+        List<SongResponse> songResponses = toSongResponseList(
+                songPool.size() > 10 ? songPool.subList(0, 10) : songPool
+        );
+        List<ArtistResponse>   artistResponses   = artists.stream().map(this::toArtistResponse).collect(Collectors.toList());
+        List<AlbumResponse>    albumResponses    = albums.stream().map(this::toAlbumResponse).collect(Collectors.toList());
+        List<PlaylistResponse> playlistResponses = playlists.stream().map(this::toPlaylistResponse).collect(Collectors.toList());
+
+        log.info("  [HOME] Trả về: {} songs, {} artists, {} albums, {} playlists",
+                songResponses.size(), artistResponses.size(), albumResponses.size(), playlistResponses.size());
+
+        return new HomeRecommendationResponse(source, songResponses, artistResponses, albumResponses, playlistResponses);
+    }
+
+    /**
+     * Trang chủ Cold Start: user chưa có lịch sử tương tác.
+     * Dùng preferredGenres để query Trending Songs/Artists/Albums.
+     * Fallback về Global Trending nếu user chưa chọn thể loại.
+     */
+    private HomeRecommendationResponse buildColdStartHome(String userId) {
+        Optional<User> userOpt = userRepository.findById(userId);
+        boolean hasGenres = userOpt.isPresent()
+                && userOpt.get().getPreferredGenres() != null
+                && !userOpt.get().getPreferredGenres().isEmpty();
+
+        String source;
+        List<Song>    songs    = new ArrayList<>();
+        List<Artist>  artists  = new ArrayList<>();
+        List<Album>   albums   = new ArrayList<>();
+        List<Playlist> playlists;
+
+        if (hasGenres) {
+            source = "COLD_START_GENRE";
+            User user = userOpt.get();
+            log.info("  [HOME][COLD START] Trending theo {} genres yêu thích",
+                    user.getPreferredGenres().size());
+
+            // Songs: gộp trending của tất cả preferredGenres, deduplicate
+            Map<String, Song> songMap = new LinkedHashMap<>();
+            for (var genre : user.getPreferredGenres()) {
+                songRepository.findTop10ByGenres_IdOrderByPlayCountDesc(genre.getId())
+                        .forEach(s -> songMap.put(s.getId(), s));
+            }
+            songs = new ArrayList<>(songMap.values());
+            songs.sort(Comparator.comparingLong(s -> -(s.getPlayCount() != null ? s.getPlayCount() : 0L)));
+            if (songs.size() > 10) songs = songs.subList(0, 10);
+
+            // Artists: lấy top artist theo genre (query DB, 1 lần mỗi genre)
+            Map<String, Artist> artistMap = new LinkedHashMap<>();
+            for (var genre : user.getPreferredGenres()) {
+                artistRepository.findTopArtistsByGenreId(
+                        genre.getId(), PageRequest.of(0, HOME_TOP_K)
+                ).forEach(a -> artistMap.put(a.getId(), a));
+            }
+            artists = new ArrayList<>(artistMap.values());
+            if (artists.size() > HOME_TOP_K) artists = artists.subList(0, HOME_TOP_K);
+
+            // Albums: lấy top album theo genre
+            Map<String, Album> albumMap = new LinkedHashMap<>();
+            for (var genre : user.getPreferredGenres()) {
+                albumRepository.findTopAlbumsByGenreId(
+                        genre.getId(), PageRequest.of(0, HOME_TOP_K)
+                ).forEach(a -> albumMap.put(a.getId(), a));
+            }
+            albums = new ArrayList<>(albumMap.values());
+            if (albums.size() > HOME_TOP_K) albums = albums.subList(0, HOME_TOP_K);
+
+        } else {
+            source = "COLD_START_GLOBAL";
+            log.info("  [HOME][COLD START] User chưa chọn thể loại. Global Trending.");
+            songs = songRepository.findTop10ByOrderByPlayCountDesc();
+        }
+
+        // Playlists: luôn lấy playlist Admin (System Playlists) cho Cold Start
+        playlists = playlistRepository.findAllAdminPlaylists().stream()
+                .limit(HOME_TOP_K)
+                .collect(Collectors.toList());
+
+        return new HomeRecommendationResponse(
+                source,
+                toSongResponseList(songs),
+                artists.stream().map(this::toArtistResponse).collect(Collectors.toList()),
+                albums.stream().map(this::toAlbumResponse).collect(Collectors.toList()),
+                playlists.stream().map(this::toPlaylistResponse).collect(Collectors.toList())
+        );
+    }
+
+    /**
+     * Helper: Sắp xếp Map<id, score> và lấy Top K id có điểm cao nhất.
+     * Chạy trên RAM, O(N log N).
+     */
+    private List<String> topKIds(Map<String, Double> scores, int k) {
+        return scores.entrySet().stream()
+                .sorted(Map.Entry.<String, Double>comparingByValue().reversed())
+                .limit(k)
+                .map(Map.Entry::getKey)
+                .collect(Collectors.toList());
     }
 
     // =========================================================
@@ -360,7 +616,7 @@ public class RecommendationEngineService {
     }
 
     // =========================================================
-    // HELPER: Song Entity → SongResponse DTO
+    // HELPER: Entity → DTO Converters
     // =========================================================
 
     /**
@@ -404,5 +660,45 @@ public class RecommendationEngineService {
             result.add(dto);
         }
         return result;
+    }
+
+    /**
+     * Chuyển Artist entity → ArtistResponse DTO (không include nested songs/albums
+     * để tránh N+1 query và giữ response nhẹ cho trang chủ).
+     */
+    private ArtistResponse toArtistResponse(Artist artist) {
+        ArtistResponse dto = new ArtistResponse();
+        dto.setId(artist.getId());
+        dto.setName(artist.getName());
+        dto.setDescription(artist.getDescription());
+        dto.setImageUrlAr(artist.getImageUrlAr());
+        dto.setTotalFollowers(artist.getTotalFollowers());
+        return dto;
+    }
+
+    /**
+     * Chuyển Album entity → AlbumResponse DTO (không include nested songs
+     * để giữ response nhẹ cho trang chủ).
+     */
+    private AlbumResponse toAlbumResponse(Album album) {
+        AlbumResponse dto = new AlbumResponse();
+        dto.setId(album.getId());
+        dto.setName(album.getName());
+        dto.setDescription(album.getDescription());
+        dto.setStatus(album.getStatus());
+        dto.setImageUrlA(album.getImageUrlA());
+        return dto;
+    }
+
+    /**
+     * Chuyển Playlist entity → PlaylistResponse DTO.
+     */
+    private PlaylistResponse toPlaylistResponse(Playlist playlist) {
+        PlaylistResponse dto = new PlaylistResponse();
+        dto.setId(playlist.getId());
+        dto.setTitle(playlist.getTitle());
+        dto.setDescription(playlist.getDescription());
+        dto.setImageUrlP(playlist.getImageUrlP());
+        return dto;
     }
 }

@@ -21,6 +21,13 @@ public class SongResponse {
     private Long playCount;
     private List<GenreResponse> genres;
 
+    /**
+     * Điểm dự đoán được tính bởi Item-Based CF pipeline.
+     * Null nếu bài hát đến từ Cold Start (dùng playCount thay thế).
+     * Dùng nội bộ bởi Aggregation step để xếp hạng Artist/Album/Playlist.
+     */
+    private Double predictedScore;
+
     public SongResponse() {
     }
 
@@ -139,5 +146,13 @@ public class SongResponse {
 
     public void setGenres(List<GenreResponse> genres) {
         this.genres = genres;
+    }
+
+    public Double getPredictedScore() {
+        return predictedScore;
+    }
+
+    public void setPredictedScore(Double predictedScore) {
+        this.predictedScore = predictedScore;
     }
 }
