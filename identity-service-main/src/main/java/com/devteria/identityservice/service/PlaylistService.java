@@ -63,7 +63,7 @@ public class PlaylistService {
         User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_EXISTED));
 
-        return playlistRepository.findByUser(user).stream()
+        return playlistRepository.findByUserOrderByCreatedAtDesc(user).stream()
                 .map(PlaylistService::toPlaylistResponse).toList();
     }
     public PlaylistResponse getPlaylist(String id) {

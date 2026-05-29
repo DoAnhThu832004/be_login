@@ -11,6 +11,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
@@ -47,8 +48,9 @@ public class InteractionAggregationService {
     private static final float SCORE_LIKE = 3.0f;
     private static final float SCORE_DOWNLOAD = 5.0f;
 
-    // Ngưỡng tối thiểu: cặp bài phải có ít nhất 3 users nghe chung mới tính similarity
-    private static final int MIN_COMMON_USERS = 3;
+    // Ngưỡng tối thiểu: cặp bài phải có ít nhất 1 user nghe chung mới tính similarity.
+    // Đặt = 1 để hoạt động ngay cả khi ít dữ liệu. Tăng lên 3+ khi đã có đủ user.
+    private static final int MIN_COMMON_USERS = 1;
 
     // Chỉ lưu cặp có similarity score > ngưỡng này
     private static final double MIN_SIMILARITY_THRESHOLD = 0.1;
@@ -382,12 +384,29 @@ public class InteractionAggregationService {
 
     /**
      * Bước 1.5 — Lưu trữ (Persistence):
-     * Xóa dữ liệu cũ, sau đó insert theo batch BATCH_SIZE records để tránh tràn RAM.
+     * Xóa dữ liệu cũ trong transaction riêng, sau đó insert theo batch BATCH_SIZE records.
+     *
+     * Lý do tách transaction:
+     * - truncateTable() dùng native DELETE, cần flush trước khi Hibernate
+     *   thấy bảng sạch; nếu nằm trong cùng transaction với saveAll() sẽ
+     *   gây xung đột Hibernate session cache (entity đã bị xóa nhưng vẫn
+     *   được track → OptimisticLockException hoặc duplicate key).
+     * - REQUIRES_NEW đảm bảo mỗi batch được commit độc lập, giúp tránh
+     *   OutOfMemoryError khi insert số lượng lớn.
      */
-    private void batchInsertSimilarities(List<SongSimilarity> similarities) {
-        // Xóa toàn bộ dữ liệu cũ
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void batchInsertSimilarities(List<SongSimilarity> similarities) {
+        // Xóa toàn bộ dữ liệu cũ và flush ngay để Hibernate nhận biết
         songSimilarityRepository.truncateTable();
+        songSimilarityRepository.flush();
         log.info("  Đã xóa dữ liệu similarity cũ.");
+
+        if (similarities.isEmpty()) {
+            log.warn("  Danh sách similarity rỗng — bảng song_similarity sẽ trống.");
+            log.warn("  Kiểm tra: có đủ user tương tác? MIN_COMMON_USERS={}, MIN_SIMILARITY_THRESHOLD={}",
+                    MIN_COMMON_USERS, MIN_SIMILARITY_THRESHOLD);
+            return;
+        }
 
         int totalInserted = 0;
         int batchStart = 0;

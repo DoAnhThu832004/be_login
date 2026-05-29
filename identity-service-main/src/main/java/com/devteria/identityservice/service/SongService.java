@@ -20,6 +20,7 @@ import com.devteria.identityservice.repository.UserRepository;
 import org.hibernate.mapping.Collection;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -84,7 +85,7 @@ public class SongService {
         return toSongResponse(song);
     }
     public PageResponse<SongResponse> getSongs(int page, int size) {
-        Pageable pageable = PageRequest.of(page - 1, size);
+        Pageable pageable = PageRequest.of(page - 1, size, Sort.by(Sort.Direction.DESC, "releasedDate"));
         Page<Song> songPage = songRepository.findAll(pageable);
 
         Set<String> likedSongIds = getLikedSongIdsOfCurrentUser();
@@ -100,7 +101,7 @@ public class SongService {
         return PagingMapper.toPageResponse(songPage, songResponses);
     }
     public PageResponse<SongResponse> getSongsByGenre(String genreId, int page, int size) {
-        Pageable pageable = PageRequest.of(page - 1, size);
+        Pageable pageable = PageRequest.of(page - 1, size, Sort.by(Sort.Direction.DESC, "releasedDate"));
         Page<Song> songPage = songRepository.findByGenres_Id(genreId, pageable);
 
         Set<String> likedSongIds = getLikedSongIdsOfCurrentUser();

@@ -173,24 +173,23 @@ public class RecommendationEngineService {
 
         Map<String, Double> candidateScores = generateCandidates(userProfile, listenedSongs);
 
+        if (candidateScores.isEmpty()) {
+            log.warn("  [HOME][FALLBACK] Không có candidate. Fallback về Cold Start Home.");
+            return buildColdStartHome(userId);
+        }
+
         List<Song> songPool;
         String source;
-        if (candidateScores.isEmpty()) {
-            log.warn("  [HOME] Không có candidate. Fallback về Trending.");
-            songPool = songRepository.findTop10ByOrderByPlayCountDesc();
-            source = "COLD_START_GLOBAL";
-        } else {
-            List<String> topCandidateIds = candidateScores.entrySet().stream()
-                    .sorted(Map.Entry.<String, Double>comparingByValue().reversed())
-                    .limit((long) HOME_SONG_POOL * 3)
-                    .map(Map.Entry::getKey)
-                    .collect(Collectors.toList());
-            List<Song> candidateSongs = songRepository.findByIdIn(topCandidateIds);
-            Map<String, Song> songById = candidateSongs.stream()
-                    .collect(Collectors.toMap(Song::getId, s -> s));
-            songPool = mmrRerank(candidateScores, songById, HOME_SONG_POOL);
-            source = "PERSONALIZED";
-        }
+        List<String> topCandidateIds = candidateScores.entrySet().stream()
+                .sorted(Map.Entry.<String, Double>comparingByValue().reversed())
+                .limit((long) HOME_SONG_POOL * 3)
+                .map(Map.Entry::getKey)
+                .collect(Collectors.toList());
+        List<Song> candidateSongs = songRepository.findByIdIn(topCandidateIds);
+        Map<String, Song> songById = candidateSongs.stream()
+                .collect(Collectors.toMap(Song::getId, s -> s));
+        songPool = mmrRerank(candidateScores, songById, HOME_SONG_POOL);
+        source = "PERSONALIZED";
         log.info("  [HOME] Pool: {} bài hát (source: {})", songPool.size(), source);
 
         // ---- H.2: Aggregate in-memory ----
@@ -418,10 +417,8 @@ public class RecommendationEngineService {
         log.info("  [CANDIDATES] Tìm thấy {} bài hát ứng viên", candidateScores.size());
 
         if (candidateScores.isEmpty()) {
-            // Không tìm thấy candidate nào trong song_similarity → fallback về trending
-            log.warn("  [FALLBACK] Không có candidate. Có thể song_similarity chưa được tính. Trả về Trending.");
-            List<Song> trending = songRepository.findTop10ByOrderByPlayCountDesc();
-            return new RecommendationResponse("COLD_START_GLOBAL", toSongResponseList(trending));
+            log.warn("  [FALLBACK] Không có candidate. Fallback về Cold Start logic.");
+            return handleColdStart(userId, limit);
         }
 
         // ---- Bước 2.5: Predicted Score (đã được tính trong generateCandidates) ----
@@ -484,9 +481,10 @@ public class RecommendationEngineService {
             String heardSongId = entry.getKey();
             double userScore = entry.getValue();
 
-            // Lấy tất cả bài tương tự với heardSong từ bảng song_similarity
+            // Lấy top-N bài tương tự với heardSong từ bảng song_similarity
+            // (giới hạn CANDIDATES_PER_SONG để tránh load toàn bộ vào RAM)
             List<SongSimilarity> similar = songSimilarityRepository
-                    .findAllRelatedToSong(heardSongId);
+                    .findAllRelatedToSong(heardSongId, PageRequest.of(0, CANDIDATES_PER_SONG));
 
             for (SongSimilarity ss : similar) {
                 // Lấy ID của bài kia trong cặp (không phải bài đang xét)

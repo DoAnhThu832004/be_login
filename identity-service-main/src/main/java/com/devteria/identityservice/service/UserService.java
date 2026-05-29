@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import com.cloudinary.Cloudinary;
@@ -89,23 +90,40 @@ public class UserService {
         return userMapper.toUserResponse(user);
     }
     @Transactional
-    @PostAuthorize("returnObject.username == authentication.name") // chỉ cho phép update trên chính họ
+    @PostAuthorize("returnObject.username == authentication.name")
     public UserResponse updateUser(String userId, UserUpdateRequest request) {
-        User user = userRepository.findById(userId).orElseThrow(() -> new AppException(ErrorCode.USER_NOT_EXISTED));
 
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_EXISTED));
+
+        // Update các field cơ bản (trừ password, roles, genres)
         userMapper.updateUser(user, request);
-        user.setPassword(passwordEncoder.encode(request.getPassword()));
 
-        var roles = roleRepository.findAllById(request.getRoles());
-        user.setRoles(new HashSet<>(roles));
-
-        // Cập nhật preferred genres nếu được cung cấp
-        if (request.getPreferredGenreIds() != null) {
-            var genres = genreRepository.findAllById(request.getPreferredGenreIds());
-            user.setPreferredGenres(new HashSet<>(genres));
+        // Password
+        if (request.getPassword() != null && !request.getPassword().isBlank()) {
+            user.setPassword(
+                    passwordEncoder.encode(request.getPassword())
+            );
         }
 
-        return userMapper.toUserResponse(userRepository.save(user));
+        // Roles
+        if (request.getRoles() != null && !request.getRoles().isEmpty()) {
+            Set<Role> roles = new HashSet<>(
+                    roleRepository.findAllById(request.getRoles())
+            );
+            user.setRoles(roles);
+        }
+
+        // Preferred Genres
+        if (request.getPreferredGenreIds() != null) {
+            Set<Genre> genres = new HashSet<>(
+                    genreRepository.findAllById(request.getPreferredGenreIds())
+            );
+            user.setPreferredGenres(genres);
+        }
+
+        userRepository.save(user);
+        return userMapper.toUserResponse(user);
     }
 
     @PreAuthorize("hasRole('ADMIN')")

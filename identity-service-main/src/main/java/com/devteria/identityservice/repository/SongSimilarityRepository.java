@@ -1,6 +1,7 @@
 package com.devteria.identityservice.repository;
 
 import com.devteria.identityservice.entity.SongSimilarity;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -21,12 +22,13 @@ public interface SongSimilarityRepository extends JpaRepository<SongSimilarity, 
     List<SongSimilarity> findBySongAIdOrderByScoreDesc(@Param("songId") String songId);
 
     /**
-     * Lấy cả hai chiều (A→B và B→A) của một bài hát.
+     * Lấy cả hai chiều (A→B và B→A) của một bài hát, giới hạn số kết quả qua Pageable.
      * Cần thiết vì chúng ta chỉ lưu một chiều (songAId < songBId).
+     * Dùng Pageable để chỉ lấy top-N bài tương tự nhất thay vì load toàn bộ vào RAM.
      */
     @Query("SELECT ss FROM SongSimilarity ss WHERE ss.songAId = :songId OR ss.songBId = :songId " +
             "ORDER BY ss.similarityScore DESC")
-    List<SongSimilarity> findAllRelatedToSong(@Param("songId") String songId);
+    List<SongSimilarity> findAllRelatedToSong(@Param("songId") String songId, Pageable pageable);
 
     /**
      * Xóa toàn bộ dữ liệu tương đồng để tính lại mỗi đêm.

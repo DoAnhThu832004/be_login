@@ -27,6 +27,7 @@ import org.springframework.web.multipart.MultipartFile;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 
 import java.io.IOException;
 import java.util.HashSet;
@@ -55,7 +56,7 @@ public class AlbumService {
         return toAlbumResponse(albumRepository.save(album));
     }
     public PageResponse<AlbumResponse> getAlbums(int page, int size) {
-        Pageable pageable = PageRequest.of(page - 1, size);
+        Pageable pageable = PageRequest.of(page - 1, size, Sort.by(Sort.Direction.DESC, "createdAt"));
         Page<Album> albumPage = albumRepository.findAll(pageable);
 
         List<AlbumResponse> albumResponses = albumPage.getContent().stream()
