@@ -21,7 +21,10 @@ public enum ErrorCode {
     GENRE_NOT_EXISTED(2006,"Genre not existed",HttpStatus.NOT_FOUND),
     PLAYLIST_NOT_EXISTED(2000,"Playlist not existed", HttpStatus.NOT_FOUND),
     ALBUM_NOT_EXISTED(2000,"Album not existed", HttpStatus.NOT_FOUND),
-    ARTIST_NOT_EXISTED(2000,"Artist not existed", HttpStatus.NOT_FOUND)
+    ARTIST_NOT_EXISTED(2000,"Artist not existed", HttpStatus.NOT_FOUND),
+    WRONG_PASSWORD(1009, "Old password is incorrect", HttpStatus.BAD_REQUEST),
+    PASSWORD_MISMATCH(1010, "New password and confirm password do not match", HttpStatus.BAD_REQUEST),
+    USER_BLOCKED(1011, "Your account has been blocked by admin", HttpStatus.FORBIDDEN)
     ;
 
     ErrorCode(int code, String message, HttpStatusCode statusCode) {

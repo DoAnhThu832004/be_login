@@ -36,6 +36,13 @@ public class User extends AbstractAuditEntity {
     Set<Role> roles;
 
     /**
+     * Trạng thái tài khoản: true = bị chặn, false = bình thường (mặc định).
+     * Admin có thể thay đổi trạng thái này để chặn hoặc mở khoá người dùng.
+     */
+    @Column(nullable = false, columnDefinition = "BOOLEAN DEFAULT FALSE")
+    boolean blocked;
+
+    /**
      * Thể loại nhạc yêu thích của user — được chọn lần đầu khi đăng ký.
      * Dùng cho luồng Cold Start trong hệ thống gợi ý nhạc cá nhân hóa.
      */

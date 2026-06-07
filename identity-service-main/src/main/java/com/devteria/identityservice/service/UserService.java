@@ -19,6 +19,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import com.devteria.identityservice.constant.PredefinedRole;
+import com.devteria.identityservice.dto.request.ChangePasswordRequest;
 import com.devteria.identityservice.dto.request.UserCreationRequest;
 import com.devteria.identityservice.dto.request.UserUpdateRequest;
 import com.devteria.identityservice.dto.response.UserResponse;
@@ -131,6 +132,39 @@ public class UserService {
         userRepository.deleteById(userId);
     }
 
+    /**
+     * Chặn tài khoản người dùng — chỉ ADMIN được phép.
+     * Sau khi bị chặn, user sẽ không thể đăng nhập cho đến khi được mở khoá.
+     *
+     * @param userId ID của user cần chặn
+     * @return UserResponse với blocked = true
+     */
+    @PreAuthorize("hasRole('ADMIN')")
+    @Transactional
+    public UserResponse blockUser(String userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_EXISTED));
+        user.setBlocked(true);
+        log.info("Admin đã chặn tài khoản user: {}", user.getUsername());
+        return userMapper.toUserResponse(userRepository.save(user));
+    }
+
+    /**
+     * Huỷ chặn tài khoản người dùng — chỉ ADMIN được phép.
+     *
+     * @param userId ID của user cần mở khoá
+     * @return UserResponse với blocked = false
+     */
+    @PreAuthorize("hasRole('ADMIN')")
+    @Transactional
+    public UserResponse unblockUser(String userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_EXISTED));
+        user.setBlocked(false);
+        log.info("Admin đã mở khoá tài khoản user: {}", user.getUsername());
+        return userMapper.toUserResponse(userRepository.save(user));
+    }
+
     @PreAuthorize("hasRole('ADMIN')")
     public PageResponse<UserResponse> getUsers(int page, int size) {
         Pageable pageable = PageRequest.of(page - 1, size);
@@ -146,6 +180,7 @@ public class UserService {
                     res.setLastName(user.getLastName());
                     res.setDob(user.getDob());
                     res.setImageUrl(user.getImageUrl());
+                    res.setBlocked(user.isBlocked()); // Trạng thái chặn/mở khoá
 
                     // Nếu roles là một Set<Role>, bạn cũng phải map nó qua RoleResponse
                     if (user.getRoles() != null) {
@@ -191,5 +226,30 @@ public class UserService {
         String imageUrl = uploadResult.get("secure_url").toString();
         user.setImageUrl(imageUrl);
         return userMapper.toUserResponse(userRepository.save(user));
+    }
+
+    @Transactional
+    public void changePassword(ChangePasswordRequest request) {
+        // Lấy username từ token của người đang đăng nhập
+        var context = SecurityContextHolder.getContext();
+        String username = context.getAuthentication().getName();
+
+        User user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_EXISTED));
+
+        // Kiểm tra mật khẩu cũ có đúng không
+        if (!passwordEncoder.matches(request.getOldPassword(), user.getPassword())) {
+            throw new AppException(ErrorCode.WRONG_PASSWORD);
+        }
+
+        // Kiểm tra mật khẩu mới và xác nhận mật khẩu có khớp không
+        if (!request.getNewPassword().equals(request.getConfirmPassword())) {
+            throw new AppException(ErrorCode.PASSWORD_MISMATCH);
+        }
+
+        // Mã hóa và lưu mật khẩu mới
+        user.setPassword(passwordEncoder.encode(request.getNewPassword()));
+        userRepository.save(user);
+        log.info("User {} đã đổi mật khẩu thành công", username);
     }
 }

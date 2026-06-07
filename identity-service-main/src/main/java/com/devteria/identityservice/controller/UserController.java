@@ -10,6 +10,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import com.devteria.identityservice.dto.request.ApiResponse;
+import com.devteria.identityservice.dto.request.ChangePasswordRequest;
 import com.devteria.identityservice.dto.request.UserCreationRequest;
 import com.devteria.identityservice.dto.request.UserUpdateRequest;
 import com.devteria.identityservice.dto.response.UserResponse;
@@ -82,6 +83,39 @@ public class UserController {
         return ApiResponse.<UserResponse>builder()
                 .result(userService.uploadProfileImage(userId, image))
                 .message("Profile image uploaded successfully")
+                .build();
+    }
+
+    @Transactional
+    @PutMapping("/change-password")
+    ApiResponse<String> changePassword(@RequestBody @Valid ChangePasswordRequest request) {
+        userService.changePassword(request);
+        return ApiResponse.<String>builder()
+                .result("Password changed successfully")
+                .build();
+    }
+
+    /**
+     * [ADMIN] Chặn tài khoản người dùng.
+     * PATCH /users/{userId}/block
+     */
+    @PatchMapping("/{userId}/block")
+    ApiResponse<UserResponse> blockUser(@PathVariable String userId) {
+        return ApiResponse.<UserResponse>builder()
+                .result(userService.blockUser(userId))
+                .message("User has been blocked successfully")
+                .build();
+    }
+
+    /**
+     * [ADMIN] Huỷ chặn tài khoản người dùng.
+     * PATCH /users/{userId}/unblock
+     */
+    @PatchMapping("/{userId}/unblock")
+    ApiResponse<UserResponse> unblockUser(@PathVariable String userId) {
+        return ApiResponse.<UserResponse>builder()
+                .result(userService.unblockUser(userId))
+                .message("User has been unblocked successfully")
                 .build();
     }
 }

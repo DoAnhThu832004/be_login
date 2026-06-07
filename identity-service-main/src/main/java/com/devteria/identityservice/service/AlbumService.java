@@ -82,6 +82,34 @@ public class AlbumService {
                 .toList();
         return PagingMapper.toPageResponse(albumPage, albumResponses);
     }
+    public PageResponse<AlbumResponse> searchAlbumsForAdmin(String key, int page, int size) {
+        if (key == null || key.trim().isEmpty()) {
+            return new PageResponse<>(page, 0, size, 0, java.util.Collections.emptyList());
+        }
+
+        Pageable pageable = PageRequest.of(page - 1, size);
+        Page<Album> albumPage = albumRepository.findByNameContainingIgnoreCase(key, pageable);
+        List<AlbumResponse> albumResponses = albumPage.getContent().stream()
+                .map(AlbumService::toAlbumResponse)
+                .toList();
+
+        return new PageResponse<>(
+                page,
+                albumPage.getTotalPages(),
+                albumPage.getSize(),
+                albumPage.getTotalElements(),
+                albumResponses
+        );
+    }
+
+    public PageResponse<AlbumResponse> getAlbumsByGenre(String genreId, int page, int size) {
+        Pageable pageable = PageRequest.of(page - 1, size, Sort.by(Sort.Direction.DESC, "createdAt"));
+        Page<Album> albumPage = albumRepository.findByGenreId(genreId, pageable);
+        List<AlbumResponse> albumResponses = albumPage.getContent().stream()
+                .map(AlbumService::toAlbumResponse)
+                .toList();
+        return PagingMapper.toPageResponse(albumPage, albumResponses);
+    }
     @Transactional
     public AlbumResponse updateAlbum(String id, AlbumUpdateRequest request) {
         Album album = albumRepository.findById(id)

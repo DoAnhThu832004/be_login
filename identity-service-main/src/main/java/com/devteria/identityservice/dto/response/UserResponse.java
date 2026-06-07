@@ -20,6 +20,7 @@ public class UserResponse {
     String lastName;
     LocalDate dob;
     String imageUrl;
+    boolean blocked;
     Set<RoleResponse> roles;
     Set<GenreResponse> preferredGenres;
 }

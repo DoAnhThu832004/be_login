@@ -35,5 +35,11 @@ public interface AlbumRepository extends JpaRepository<Album, String> {
      * Dùng trong bước Hydration của pipeline Aggregation.
      */
     List<Album> findAllByIdIn(List<String> ids);
-}
 
+    /**
+     * Lấy danh sách Album có chứa ít nhất 1 bài hát thuộc genre chỉ định.
+     * Dùng cho tính năng lọc nội dung theo thể loại ở frontend.
+     */
+    @Query("SELECT DISTINCT a FROM Album a JOIN a.songs s JOIN s.genres g WHERE g.id = :genreId")
+    Page<Album> findByGenreId(@Param("genreId") String genreId, Pageable pageable);
+}

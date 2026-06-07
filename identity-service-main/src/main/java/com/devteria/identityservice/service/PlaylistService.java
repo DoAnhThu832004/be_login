@@ -66,6 +66,40 @@ public class PlaylistService {
         return playlistRepository.findByUserOrderByCreatedAtDesc(user).stream()
                 .map(PlaylistService::toPlaylistResponse).toList();
     }
+
+    public PageResponse<PlaylistResponse> getPlaylistsByGenre(String genreId, int page, int size) {
+        Pageable pageable = PageRequest.of(page - 1, size, Sort.by(Sort.Direction.DESC, "createdAt"));
+        Page<Playlist> playlistPage = playlistRepository.findAdminPlaylistsByGenreId(genreId, pageable);
+        List<PlaylistResponse> responses = playlistPage.getContent().stream()
+                .map(PlaylistService::toPlaylistResponse)
+                .toList();
+        return new PageResponse<>(
+                page,
+                playlistPage.getTotalPages(),
+                playlistPage.getSize(),
+                playlistPage.getTotalElements(),
+                responses
+        );
+    }
+    public PageResponse<PlaylistResponse> searchPlaylistsForAdmin(String key, int page, int size) {
+        if (key == null || key.trim().isEmpty()) {
+            return new PageResponse<>(page, 0, size, 0, java.util.Collections.emptyList());
+        }
+
+        Pageable pageable = PageRequest.of(page - 1, size);
+        Page<Playlist> playlistPage = playlistRepository.findByTitleContainingIgnoreCase(key, pageable);
+        List<PlaylistResponse> responses = playlistPage.getContent().stream()
+                .map(PlaylistService::toPlaylistResponse)
+                .toList();
+
+        return new PageResponse<>(
+                page,
+                playlistPage.getTotalPages(),
+                playlistPage.getSize(),
+                playlistPage.getTotalElements(),
+                responses
+        );
+    }
     public PlaylistResponse getPlaylist(String id) {
         Playlist playlist = playlistRepository.findById(id)
                 .orElseThrow(() -> new AppException(ErrorCode.PLAYLIST_NOT_EXISTED));

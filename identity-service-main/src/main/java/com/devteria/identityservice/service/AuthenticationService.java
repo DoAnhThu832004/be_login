@@ -81,6 +81,9 @@ public class AuthenticationService {
 
         if (!authenticated) throw new AppException(ErrorCode.UNAUTHENTICATED);
 
+        // Kiểm tra tài khoản có bị chặn không — nếu bị chặn thì từ chối đăng nhập
+        if (user.isBlocked()) throw new AppException(ErrorCode.USER_BLOCKED);
+
         var token = generateToken(user);
 
         return AuthenticationResponse.builder().token(token).authenticated(true).build();
@@ -116,6 +119,8 @@ public class AuthenticationService {
         var username = signedJWT.getJWTClaimsSet().getSubject();
 
         var user = userRepository.findByUsername(username).orElseThrow(() -> new AppException(ErrorCode.UNAUTHENTICATED));
+
+        if (user.isBlocked()) throw new AppException(ErrorCode.USER_BLOCKED);
 
         var token = generateToken(user);
 

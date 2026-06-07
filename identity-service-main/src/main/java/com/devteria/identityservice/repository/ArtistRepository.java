@@ -1,6 +1,7 @@
 package com.devteria.identityservice.repository;
 
 import com.devteria.identityservice.entity.Artist;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -14,6 +15,7 @@ import java.util.Optional;
 public interface ArtistRepository extends JpaRepository<Artist, String> {
     Optional<Artist> findByName(String name);
     List<Artist> findByNameContainingIgnoreCase(String keyword);
+    Page<Artist> findByNameContainingIgnoreCase(String keyword, Pageable pageable);
 
     /**
      * Lấy Top N nghệ sĩ nổi bật nhất của một thể loại nhạc,

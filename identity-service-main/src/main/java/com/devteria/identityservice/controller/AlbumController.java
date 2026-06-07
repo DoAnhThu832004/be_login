@@ -56,6 +56,16 @@ public class AlbumController {
                 .result(albumService.searchAlbums(name, page, size))
                 .build();
     }
+    @GetMapping("/admin/searchKey")
+    public ApiResponse<PageResponse<AlbumResponse>> searchAlbumsForAdmin(
+            @RequestParam String name,
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "20") int size
+    ) {
+        return ApiResponse.<PageResponse<AlbumResponse>>builder()
+                .result(albumService.searchAlbumsForAdmin(name, page, size))
+                .build();
+    }
     @PutMapping("/{albumId}")
     ApiResponse<AlbumResponse> updateAlbum(@PathVariable("albumId") String id,@RequestBody @Valid AlbumUpdateRequest request) {
         return ApiResponse.<AlbumResponse>builder()
@@ -109,6 +119,17 @@ public class AlbumController {
         albumService.removeArtistToAlbum(albumId,artistId);
         return ApiResponse.<String>builder()
                 .result("Artist removed from album")
+                .build();
+    }
+
+    @GetMapping("/genre/{genreId}")
+    public ApiResponse<PageResponse<AlbumResponse>> getAlbumsByGenre(
+            @PathVariable("genreId") String genreId,
+            @RequestParam(value = "page", required = false, defaultValue = "1") int page,
+            @RequestParam(value = "size", required = false, defaultValue = "10") int size
+    ) {
+        return ApiResponse.<PageResponse<AlbumResponse>>builder()
+                .result(albumService.getAlbumsByGenre(genreId, page, size))
                 .build();
     }
 }
