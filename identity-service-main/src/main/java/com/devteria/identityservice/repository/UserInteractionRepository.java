@@ -70,7 +70,7 @@ public interface UserInteractionRepository extends JpaRepository<UserInteraction
      * Dùng trong bước Aggregation của luồng Offline để xây dựng ma trận điểm.
      */
     @Query("SELECT ui.user.id, ui.song.id, ui.ratingScore, ui.interactionType " +
-            "FROM UserInteraction ui WHERE ui.ratingScore IS NOT NULL")
+            "FROM UserInteraction ui")
     List<Object[]> findAllRawInteractionData();
 
     /**

@@ -157,29 +157,29 @@ public class InteractionAggregationService {
     }
 
     private void syncDownloadsFromDownloadedSongs() {
-        // Lưu ý: chỉ thêm DOWNLOAD nếu chưa có (không xóa để tránh mất PLAY)
+        // Xóa toàn bộ DOWNLOAD cũ để đồng bộ lại từ đầu (đảm bảo sạch và nhanh)
+        userInteractionRepository.deleteByInteractionTypeOrNull("DOWNLOAD");
+
         var allDownloads = downloadedSongRepository.findAll();
         if (allDownloads.isEmpty()) {
             log.info("  [DOWNLOAD] Không có dữ liệu Downloads.");
             return;
         }
 
-        int synced = 0;
+        List<UserInteraction> downloadInteractions = new ArrayList<>();
         for (var download : allDownloads) {
-            boolean exists = userInteractionRepository.existsByUserAndSong(
-                    download.getUser(), download.getSong());
-            if (!exists) {
-                UserInteraction interaction = new UserInteraction();
-                interaction.setUser(download.getUser());
-                interaction.setSong(download.getSong());
-                interaction.setRatingScore(SCORE_DOWNLOAD);
-                interaction.setInteractionType("DOWNLOAD");
-                interaction.setUpdatedAt(download.getDownloadedAt());
-                userInteractionRepository.save(interaction);
-                synced++;
-            }
+            UserInteraction interaction = new UserInteraction();
+            interaction.setUser(download.getUser());
+            interaction.setSong(download.getSong());
+            interaction.setRatingScore(SCORE_DOWNLOAD);
+            interaction.setInteractionType("DOWNLOAD");
+            interaction.setUpdatedAt(download.getDownloadedAt());
+            downloadInteractions.add(interaction);
         }
-        log.info("  [DOWNLOAD] Đã sync {} bản ghi DOWNLOAD mới", synced);
+
+        // Batch Insert toàn bộ danh sách
+        userInteractionRepository.saveAll(downloadInteractions);
+        log.info("  [DOWNLOAD] Đã sync {} bản ghi DOWNLOAD thành công", downloadInteractions.size());
     }
 
     // =========================================================
@@ -251,7 +251,7 @@ public class InteractionAggregationService {
     private double applyInteractionWeight(float rawScore, String interactionType) {
         if (interactionType == null) return rawScore;
         return switch (interactionType.toUpperCase()) {
-            case "PLAY" -> SCORE_PLAY;
+            case "PLAY", "LISTEN" -> SCORE_PLAY;
             case "LIKE" -> SCORE_LIKE;
             case "DOWNLOAD" -> SCORE_DOWNLOAD;
             default -> rawScore;
