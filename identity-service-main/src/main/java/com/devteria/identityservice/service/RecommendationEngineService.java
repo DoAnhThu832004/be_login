@@ -16,6 +16,7 @@ import com.devteria.identityservice.entity.User;
 import com.devteria.identityservice.entity.UserInteraction;
 import com.devteria.identityservice.repository.AlbumRepository;
 import com.devteria.identityservice.repository.ArtistRepository;
+import com.devteria.identityservice.repository.FollowerRepository;
 import com.devteria.identityservice.repository.PlaylistRepository;
 import com.devteria.identityservice.repository.SongRepository;
 import com.devteria.identityservice.repository.SongSimilarityRepository;
@@ -26,6 +27,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -37,28 +40,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-/**
- * ===== LUỒNG ONLINE — Trả Về Gợi Ý Real-time =====
- *
- * Mục tiêu: Trả về danh sách gợi ý trong < 50ms bằng cách đọc từ bảng
- * song_similarity đã được tính toán sẵn bởi luồng Offline.
- *
- * Pipeline Songs (đã có):
- * 2.1 Client gọi API GET /api/recommendations?userId=XYZ
- * 2.2 Cold Start Check: user chưa có lịch sử → trả về Trending
- * 2.3 Lấy User Profile: danh sách bài đã nghe + điểm tương tác
- * 2.4 Candidate Generation: tìm bài tương tự từ song_similarity
- * 2.5 Predicted Score: tính điểm dự đoán có trọng số
- * 2.6 MMR Re-ranking: cân bằng Relevance và Diversity
- * 2.7 Trả về Top K bài hát
- *
- * Pipeline Home — Aggregation (mới):
- * H.1 Lấy top 50 bài hát gợi ý (tái dụng pipeline trên)
- * H.2 Aggregate in-memory: gom nhóm Artist/Album/Playlist theo predictedScore
- * H.3 Sort & Truncate: lấy Top 5 cho mỗi nhóm
- * H.4 Hydration: query DB lấy đầy đủ thông tin
- * H.5 Build HomeRecommendationResponse
- */
 @Service
 public class RecommendationEngineService {
 
@@ -82,6 +63,10 @@ public class RecommendationEngineService {
     /** Số Artist/Album/Playlist tối đa trả về cho trang chủ. */
     private static final int HOME_TOP_K = 5;
 
+    private static final double BASE_FOLLOW_BOOST = 3.0;
+
+    private static final double RECENCY_DECAY_LAMBDA = 0.05;
+
     private final UserRepository userRepository;
     private final UserInteractionRepository userInteractionRepository;
     private final SongSimilarityRepository songSimilarityRepository;
@@ -89,6 +74,7 @@ public class RecommendationEngineService {
     private final ArtistRepository artistRepository;
     private final AlbumRepository albumRepository;
     private final PlaylistRepository playlistRepository;
+    private final FollowerRepository followerRepository;
 
     public RecommendationEngineService(
             UserRepository userRepository,
@@ -97,7 +83,8 @@ public class RecommendationEngineService {
             SongRepository songRepository,
             ArtistRepository artistRepository,
             AlbumRepository albumRepository,
-            PlaylistRepository playlistRepository) {
+            PlaylistRepository playlistRepository,
+            FollowerRepository followerRepository) {
         this.userRepository = userRepository;
         this.userInteractionRepository = userInteractionRepository;
         this.songSimilarityRepository = songSimilarityRepository;
@@ -105,20 +92,13 @@ public class RecommendationEngineService {
         this.artistRepository = artistRepository;
         this.albumRepository = albumRepository;
         this.playlistRepository = playlistRepository;
+        this.followerRepository = followerRepository;
     }
 
     // =========================================================
     // ENTRY POINT: Bước 2.1 — API Handler
     // =========================================================
 
-    /**
-     * Entry point chính của luồng Online — chỉ trả về Bài hát.
-     * Điều phối toàn bộ pipeline từ Cold Start đến MMR Re-ranking.
-     *
-     * @param userId ID của user cần gợi ý
-     * @param limit  Số bài hát muốn trả về (default: 10)
-     * @return RecommendationResponse chứa danh sách bài hát và metadata nguồn gợi ý
-     */
     public RecommendationResponse getRecommendations(String userId, int limit) {
         log.info("=== [ONLINE] Bắt đầu lấy gợi ý cho user: {} ===", userId);
 
@@ -136,17 +116,6 @@ public class RecommendationEngineService {
     // ENTRY POINT HOME: API Trang Chủ — Songs + Artists + Albums + Playlists
     // =========================================================
 
-    /**
-     * Entry point cho trang chủ.
-     * Tái dụng pipeline Songs (pool 50 bài), sau đó Aggregate in-memory
-     * để suy ra Top Artists, Albums, Playlists mà không cần thêm bảng DB.
-     *
-     * Complexity: O(N) trên RAM với N=50 (< 1ms)
-     * DB calls: 1 lần lấy songs + 1 lần hydrate entities
-     *
-     * @param userId ID của user
-     * @return HomeRecommendationResponse chứa songs, artists, albums, playlists
-     */
     public HomeRecommendationResponse getHomeRecommendations(String userId) {
         log.info("=== [HOME] Bắt đầu lấy gợi ý trang chủ cho user: {} ===", userId);
 
@@ -160,10 +129,6 @@ public class RecommendationEngineService {
         return buildPersonalizedHome(userId);
     }
 
-    /**
-     * H.1 → H.5: Trang chủ cá nhân hóa cho user đã có lịch sử.
-     * Dùng Aggregation Pipeline: Songs → Artists, Albums, Playlists.
-     */
     private HomeRecommendationResponse buildPersonalizedHome(String userId) {
         // ---- H.1: Lấy pool 50 bài hát (tái dụng pipeline có sẵn) ----
         // Không dùng getPersonalizedRecommendations() vì cần Song entity để aggregate Playlist
@@ -188,6 +153,15 @@ public class RecommendationEngineService {
         List<Song> candidateSongs = songRepository.findByIdIn(topCandidateIds);
         Map<String, Song> songById = candidateSongs.stream()
                 .collect(Collectors.toMap(Song::getId, s -> s));
+
+        // Follow Artist + New Release Boost (cũng áp dụng cho trang chủ)
+        Set<String> followedArtistIds = getFollowedArtistIds(userId);
+        if (!followedArtistIds.isEmpty()) {
+            log.info("  [HOME][FOLLOW BOOST] User follow {} nghệ sĩ. Áp dụng New Release Boost.",
+                    followedArtistIds.size());
+            applyFollowArtistBoost(candidateScores, songById, followedArtistIds);
+        }
+
         songPool = mmrRerank(candidateScores, songById, HOME_SONG_POOL);
         source = "PERSONALIZED";
         log.info("  [HOME] Pool: {} bài hát (source: {})", songPool.size(), source);
@@ -435,6 +409,15 @@ public class RecommendationEngineService {
         Map<String, Song> songById = candidateSongs.stream()
                 .collect(Collectors.toMap(Song::getId, s -> s));
 
+        // ---- Bước 2.5b: Follow Artist + New Release Boost ----
+        // Lấy danh sách Artist mà user đang follow để cộng điểm ưu tiên
+        Set<String> followedArtistIds = getFollowedArtistIds(userId);
+        if (!followedArtistIds.isEmpty()) {
+            log.info("  [FOLLOW BOOST] User follow {} nghệ sĩ. Áp dụng New Release Boost.",
+                    followedArtistIds.size());
+            applyFollowArtistBoost(candidateScores, songById, followedArtistIds);
+        }
+
         // ---- Bước 2.6: MMR Re-ranking ----
         log.info("  [MMR] Áp dụng MMR re-ranking với λ={}", MMR_LAMBDA);
         List<Song> rerankedSongs = mmrRerank(candidateScores, songById, limit);
@@ -444,12 +427,73 @@ public class RecommendationEngineService {
         return new RecommendationResponse("PERSONALIZED", toSongResponseList(rerankedSongs));
     }
 
+    // =========================================================
+    // FOLLOW ARTIST + NEW RELEASE BOOST
+    // =========================================================
+
     /**
-     * Bước 2.3 — Xây dựng User Profile:
-     * Gom nhóm các tương tác theo bài hát, tính tổng điểm.
+     * Lấy tập hợp ID của tất cả Nghệ sĩ mà user đang Follow.
+     * Dùng để kiểm tra bài hát ứng viên có thuộc Artist được follow không.
      *
-     * @return Map[songId → aggregatedScore]
+     * @param userId ID của user
+     * @return Set chứa các Artist ID
      */
+    private Set<String> getFollowedArtistIds(String userId) {
+        try {
+            // Cần lấy User entity để query FollowerRepository
+            return userRepository.findById(userId)
+                    .map(user -> followerRepository.findAllByUser(user).stream()
+                            .map(f -> f.getArtist().getId())
+                            .collect(Collectors.toSet()))
+                    .orElse(new HashSet<>());
+        } catch (Exception e) {
+            log.warn("  [FOLLOW BOOST] Không lấy được danh sách follow của user {}: {}", userId, e.getMessage());
+            return new HashSet<>();
+        }
+    }
+
+    private void applyFollowArtistBoost(
+            Map<String, Double> candidateScores,
+            Map<String, Song> songById,
+            Set<String> followedIds) {
+
+        int boostedCount = 0;
+        for (Map.Entry<String, Song> entry : songById.entrySet()) {
+            String songId = entry.getKey();
+            Song song = entry.getValue();
+
+            if (song.getArtists() == null || song.getArtists().isEmpty()) continue;
+
+            // Kiểm tra bài hát có thuộc Artist được follow không
+            boolean isFollowedArtist = song.getArtists().stream()
+                    .anyMatch(artist -> followedIds.contains(artist.getId()));
+
+            if (isFollowedArtist) {
+                double recencyFactor = calculateRecencyFactor(song.getReleasedDate());
+                double boost = BASE_FOLLOW_BOOST * recencyFactor;
+
+                // Cộng boost vào điểm hiện có (hoặc tạo entry mới nếu chưa có)
+                candidateScores.merge(songId, boost, Double::sum);
+                boostedCount++;
+
+                log.debug("  [FOLLOW BOOST] Bài '{}': recency={:.3f}, boost=+{:.3f}",
+                        song.getName(), recencyFactor, boost);
+            }
+        }
+        log.info("  [FOLLOW BOOST] Đã boost {} bài hát từ nghệ sĩ được follow.", boostedCount);
+    }
+
+    private double calculateRecencyFactor(LocalDateTime releasedDate) {
+        if (releasedDate == null) return 0.0;
+        long daysOld = ChronoUnit.DAYS.between(releasedDate, LocalDateTime.now());
+        if (daysOld < 0) daysOld = 0; // Đề phòng ngày ra mắt ở tương lai gần
+        return Math.exp(-RECENCY_DECAY_LAMBDA * daysOld);
+    }
+
+    // =========================================================
+    // BƯỚC 2.3: XÂY DỰNG USER PROFILE
+    // =========================================================
+
     private Map<String, Double> buildUserProfile(List<UserInteraction> interactions) {
         Map<String, Double> profile = new HashMap<>();
         for (UserInteraction ui : interactions) {
@@ -461,14 +505,6 @@ public class RecommendationEngineService {
         return profile;
     }
 
-    /**
-     * Bước 2.4 + 2.5 — Candidate Generation + Predicted Score:
-     * Với mỗi bài đã nghe, lấy các bài tương tự từ song_similarity.
-     * Tính Predicted Score = Σ(userScore[heard] × similarity[heard][candidate])
-     *                        / Σ(similarity[heard][candidate])
-     *
-     * @return Map[candidateSongId → predictedScore]
-     */
     private Map<String, Double> generateCandidates(
             Map<String, Double> userProfile, Set<String> listenedSongs) {
 
@@ -513,20 +549,6 @@ public class RecommendationEngineService {
         return predictedScores;
     }
 
-    /**
-     * Bước 2.6 — MMR Re-ranking (Maximal Marginal Relevance):
-     * Chọn lần lượt bài có MMR score cao nhất.
-     *
-     * MMR(d) = λ × relevance(d) - (1-λ) × max_{s∈S} diversity_penalty(d, s)
-     *
-     * diversity_penalty(d, s) = Độ trùng lặp genre giữa bài d và bài s đã được chọn.
-     * Công thức: |genres(d) ∩ genres(s)| / |genres(d) ∪ genres(s)| (Jaccard similarity)
-     *
-     * @param candidateScores Map[songId → predictedScore]
-     * @param songById        Map để lookup Song entity theo ID
-     * @param limit           Số bài hát muốn chọn
-     * @return Danh sách bài đã được re-rank
-     */
     private List<Song> mmrRerank(
             Map<String, Double> candidateScores,
             Map<String, Song> songById,
@@ -586,12 +608,6 @@ public class RecommendationEngineService {
         return selected;
     }
 
-    /**
-     * Tính Jaccard Similarity giữa 2 bài hát dựa trên tập genres.
-     * Dùng để đo mức độ "trùng lặp thể loại" trong MMR.
-     *
-     * Jaccard(A, B) = |genres(A) ∩ genres(B)| / |genres(A) ∪ genres(B)|
-     */
     private double computeGenreJaccard(Song a, Song b) {
         if (a.getGenres() == null || a.getGenres().isEmpty()
                 || b.getGenres() == null || b.getGenres().isEmpty()) {

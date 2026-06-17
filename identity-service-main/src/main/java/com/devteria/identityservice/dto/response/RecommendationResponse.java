@@ -2,28 +2,12 @@ package com.devteria.identityservice.dto.response;
 
 import java.util.List;
 
-/**
- * DTO trả về kết quả gợi ý nhạc.
- * Bao gồm metadata về nguồn gốc gợi ý và danh sách bài hát.
- */
 public class RecommendationResponse {
 
-    /**
-     * Nguồn gốc của danh sách gợi ý:
-     * - PERSONALIZED: Dựa trên lịch sử nghe nhạc cá nhân (Item-Based CF + MMR)
-     * - COLD_START_GENRE: User mới, trả về Trending theo thể loại yêu thích đã chọn
-     * - COLD_START_GLOBAL: User mới và chưa chọn thể loại, trả về Global Trending
-     */
     private String source;
 
-    /**
-     * Tổng số bài hát trong danh sách.
-     */
     private int totalCount;
 
-    /**
-     * Danh sách bài hát được gợi ý.
-     */
     private List<SongResponse> songs;
 
     public RecommendationResponse() {}

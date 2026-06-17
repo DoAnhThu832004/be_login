@@ -21,23 +21,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-
-/**
- * ===== LUỒNG OFFLINE — Chạy Nền Ban Đêm =====
- *
- * Mục tiêu: Tính toán trước (pre-compute) độ tương đồng giữa tất cả cặp bài hát
- * và lưu vào bảng song_similarity. Khi API online gọi, chỉ cần đọc từ DB mà không
- * cần tính toán, đảm bảo thời gian phản hồi < 50ms.
- *
- * Lịch chạy: 2h sáng mỗi ngày (khi server ít tải nhất).
- *
- * Pipeline:
- * 1. Sync dữ liệu tương tác (PLAY=1đ, LIKE=3đ, DOWNLOAD=5đ) → bảng user_interactions
- * 2. Aggregate điểm theo (userId, songId)
- * 3. Mean-Centering: điểm_chuẩn = điểm_tổng - trung_bình_user
- * 4. Tính Adjusted Cosine Similarity cho mỗi cặp bài
- * 5. Batch Insert vào song_similarity (1000 records/batch)
- */
 @Service
 public class InteractionAggregationService {
 
@@ -78,11 +61,6 @@ public class InteractionAggregationService {
     // ENTRY POINT: Cron Job 2h sáng mỗi ngày
     // =========================================================
 
-    /**
-     * Bước 1.1 — Kích hoạt (Trigger):
-     * Tự động chạy lúc 2h sáng mỗi ngày.
-     * Cũng có thể gọi thủ công qua API admin.
-     */
     @Transactional
     @Scheduled(cron = "0 0 2 * * ?")
     public void runNightlyRecommendationJob() {
@@ -113,11 +91,6 @@ public class InteractionAggregationService {
     // PHASE 1: SYNC RAW INTERACTIONS
     // =========================================================
 
-    /**
-     * Bước 1.2 (phần 1) — Đồng bộ hóa dữ liệu thô:
-     * Đọc từ bảng Favorites và DownloadedSongs rồi ghi vào user_interactions.
-     * PLAY interactions được ghi trực tiếp bởi InteractionService khi user nghe nhạc.
-     */
     @Transactional
     public void syncRawInteractions() {
         log.info("--- Phase 1: Sync raw interactions ---");
@@ -186,10 +159,6 @@ public class InteractionAggregationService {
     // PHASE 2-5: COMPUTE SIMILARITY
     // =========================================================
 
-    /**
-     * Tính toán toàn bộ ma trận similarity và lưu vào DB.
-     * Có thể gọi độc lập qua API admin để tái tính mà không cần sync lại.
-     */
     @Transactional
     public void computeAndStoreSimilarity() {
         log.info("--- Phase 2: Aggregation ---");
@@ -217,13 +186,6 @@ public class InteractionAggregationService {
         batchInsertSimilarities(similarities);
     }
 
-    /**
-     * Bước 1.2 — Gom nhóm dữ liệu (Aggregation):
-     * Quét bảng user_interactions và tính tổng điểm theo (userId, songId).
-     * Điểm được tính theo trọng số loại hành động.
-     *
-     * @return Map[userId → Map[songId → totalScore]]
-     */
     private Map<String, Map<String, Double>> aggregateScores() {
         List<Object[]> rawData = userInteractionRepository.findAllRawInteractionData();
         Map<String, Map<String, Double>> matrix = new HashMap<>();
@@ -244,10 +206,6 @@ public class InteractionAggregationService {
         return matrix;
     }
 
-    /**
-     * Áp dụng trọng số hành động lên điểm thô.
-     * PLAY=1đ, LIKE=3đ, DOWNLOAD=5đ.
-     */
     private double applyInteractionWeight(float rawScore, String interactionType) {
         if (interactionType == null) return rawScore;
         return switch (interactionType.toUpperCase()) {
@@ -258,13 +216,6 @@ public class InteractionAggregationService {
         };
     }
 
-    /**
-     * Bước 1.3 — Chuẩn hóa dữ liệu (Mean-Centering):
-     * Tính điểm trung bình của mỗi user, sau đó lấy mỗi điểm trừ đi trung bình.
-     * Loại bỏ bias giữa user "dễ dãi" và user "khó tính".
-     *
-     * @return Ma trận điểm đã chuẩn hóa: Map[userId → Map[songId → centeredScore]]
-     */
     private Map<String, Map<String, Double>> computeMeanCenteredMatrix(
             Map<String, Map<String, Double>> userSongMatrix) {
 
@@ -292,17 +243,6 @@ public class InteractionAggregationService {
         return centeredMatrix;
     }
 
-    /**
-     * Bước 1.4 — Tính độ tương đồng (Adjusted Cosine Similarity):
-     * So sánh mọi cặp bài hát dựa trên vector điểm chuẩn hóa của những user
-     * đã nghe CẢ HAI bài.
-     *
-     * Công thức:
-     *   sim(A,B) = Σ(r_uA * r_uB) / sqrt(Σ(r_uA²) * Σ(r_uB²))
-     * trong đó r_uX là điểm mean-centered của user u với bài X.
-     *
-     * Ngưỡng tương tác: bỏ qua cặp có < MIN_COMMON_USERS người nghe chung.
-     */
     private List<SongSimilarity> computeAdjustedCosineSimilarity(
             Map<String, Map<String, Double>> centeredMatrix) {
 
@@ -366,9 +306,6 @@ public class InteractionAggregationService {
         return results;
     }
 
-    /**
-     * Đảo chiều ma trận từ [userId → songId → score] thành [songId → userId → score].
-     */
     private Map<String, Map<String, Double>> invertMatrix(Map<String, Map<String, Double>> userSongMatrix) {
         Map<String, Map<String, Double>> songUserMatrix = new HashMap<>();
         for (Map.Entry<String, Map<String, Double>> userEntry : userSongMatrix.entrySet()) {
@@ -382,18 +319,6 @@ public class InteractionAggregationService {
         return songUserMatrix;
     }
 
-    /**
-     * Bước 1.5 — Lưu trữ (Persistence):
-     * Xóa dữ liệu cũ trong transaction riêng, sau đó insert theo batch BATCH_SIZE records.
-     *
-     * Lý do tách transaction:
-     * - truncateTable() dùng native DELETE, cần flush trước khi Hibernate
-     *   thấy bảng sạch; nếu nằm trong cùng transaction với saveAll() sẽ
-     *   gây xung đột Hibernate session cache (entity đã bị xóa nhưng vẫn
-     *   được track → OptimisticLockException hoặc duplicate key).
-     * - REQUIRES_NEW đảm bảo mỗi batch được commit độc lập, giúp tránh
-     *   OutOfMemoryError khi insert số lượng lớn.
-     */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void batchInsertSimilarities(List<SongSimilarity> similarities) {
         // Xóa toàn bộ dữ liệu cũ và flush ngay để Hibernate nhận biết

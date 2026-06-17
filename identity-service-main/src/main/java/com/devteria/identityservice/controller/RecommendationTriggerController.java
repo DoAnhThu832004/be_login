@@ -6,13 +6,6 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-/**
- * Controller Admin để kích hoạt thủ công các tác vụ offline.
- * Thông thường các tác vụ này chạy tự động lúc 2h sáng qua Cron Job.
- * Dùng để debug, test, hoặc force-refresh dữ liệu ngay lập tức.
- *
- * Yêu cầu quyền ADMIN.
- */
 @RestController
 @RequestMapping("/api/admin/recommendations")
 public class RecommendationTriggerController {
@@ -23,14 +16,6 @@ public class RecommendationTriggerController {
         this.aggregationService = aggregationService;
     }
 
-    /**
-     * Trigger toàn bộ pipeline offline:
-     * 1. Sync raw interactions (LIKE từ Favorites, DOWNLOAD từ DownloadedSongs)
-     * 2. Tính Adjusted Cosine Similarity
-     * 3. Batch Insert vào song_similarity
-     *
-     * POST /identity/api/admin/recommendations/trigger-full-pipeline
-     */
     @PostMapping("/trigger-full-pipeline")
     public ApiResponse<String> triggerFullPipeline() {
         aggregationService.runNightlyRecommendationJob();
@@ -42,12 +27,6 @@ public class RecommendationTriggerController {
                 .build();
     }
 
-    /**
-     * Chỉ sync raw interactions (LIKE & DOWNLOAD) vào bảng user_interactions.
-     * Không tính lại similarity.
-     *
-     * POST /identity/api/admin/recommendations/trigger-sync
-     */
     @PostMapping("/trigger-sync")
     public ApiResponse<String> triggerSyncOnly() {
         aggregationService.syncRawInteractions();
@@ -59,12 +38,6 @@ public class RecommendationTriggerController {
                 .build();
     }
 
-    /**
-     * Chỉ tính lại similarity (dùng dữ liệu user_interactions hiện có).
-     * Không sync lại raw data. Hữu ích khi đã có đủ dữ liệu trong user_interactions.
-     *
-     * POST /identity/api/admin/recommendations/trigger-similarity
-     */
     @PostMapping("/trigger-similarity")
     public ApiResponse<String> triggerSimilarityOnly() {
         aggregationService.computeAndStoreSimilarity();
@@ -76,10 +49,6 @@ public class RecommendationTriggerController {
                 .build();
     }
 
-    /**
-     * Endpoint cũ — giữ lại để backward compatibility.
-     * @deprecated Dùng /trigger-full-pipeline thay thế.
-     */
     @Deprecated
     @PostMapping("/trigger-aggregation")
     public ApiResponse<String> triggerAggregationJobManually() {
